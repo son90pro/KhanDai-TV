@@ -1,5 +1,6 @@
 import time
 import re
+import base64
 import unicodedata
 from datetime import datetime, timezone, timedelta
 from playwright.sync_api import sync_playwright
@@ -37,7 +38,7 @@ KNOWN_BLVS = [
     "Tiền Đạo", "Hậu Vệ", "Họa Mi", "Bia Hơi", "Thánh Dự", "Thần Tài"
 ]
 
-# Từ điển Cờ Quốc Gia chuẩn FlagCDN (Không bao giờ bị lỗi ảnh/chặn 403)
+# Từ điển Cờ Quốc Gia chuẩn FlagCDN
 COUNTRY_FLAGS = {
     "vietnam": "vn", "việt nam": "vn", "viet nam": "vn", "philippines": "ph", "thailand": "th", "thái lan": "th", "thai lan": "th",
     "pakistan": "pk", "indonesia": "id", "malaysia": "my", "singapore": "sg", "myanmar": "mm",
@@ -224,48 +225,81 @@ def get_team_logo(teams_str: str) -> str:
             return f"https://flagcdn.com/w320/{code}.png"
     return DEFAULT_FLAG
 
-def fetch_m3u8_stream(context, match_url: str) -> str:
-    """Tự động tìm luồng m3u8 phát trực tiếp"""
-    m3u8_url = ""
-    page = context.new_page()
+def fetch_m3u8_stream(page, match_url: str) -> str:
+    """Tự động tìm và trích xuất luồng m3u8 chuẩn để phát trực tiếp"""
+    m3u8_candidates = []
 
-    def handle_request(request):
-        nonlocal m3u8_url
-        u = request.url
-        if ".m3u8" in u and "blob:" not in u and not m3u8_url:
-            m3u8_url = u
+    def inspect_url(u: str):
+        if ".m3u8" in u and "blob:" not in u:
+            # Lọc bớt URL rác từ quảng cáo nếu có
+            if not any(ad in u.lower() for ad in ["doubleclick", "analytics", "pixel", "facebook"]):
+                m3u8_candidates.append(u)
+
+    def handle_request(req):
+        inspect_url(req.url)
+
+    def handle_response(res):
+        inspect_url(res.url)
 
     page.on("request", handle_request)
+    page.on("response", handle_response)
 
     try:
-        page.goto(match_url, timeout=10000, wait_until="domcontentloaded")
-        time.sleep(1.5)
+        page.goto(match_url, timeout=18000, wait_until="domcontentloaded")
+        time.sleep(2)
 
-        if not m3u8_url:
-            content = page.content()
-            matches = re.findall(r'https?://[^\s"\'<>]+\.m3u8[^\s"\'<>]*', content)
-            for u in matches:
-                if "blob:" not in u:
-                    m3u8_url = u
-                    break
+        # 1. Giả lập Click vào nút Play hoặc Player để kích hoạt luồng phát HLS
+        try:
+            page.evaluate('''() => {
+                const clickables = document.querySelectorAll('.play-btn, .btn-play, #player, iframe, video, .server-item, .btn-server');
+                clickables.forEach(el => {
+                    try { el.click(); } catch(e){}
+                });
+            }''')
+        except Exception:
+            pass
 
-        if not m3u8_url:
+        time.sleep(2.5)
+
+        # 2. Nếu chưa bắt được qua lưu lượng mạng, quét trong DOM & các iframes
+        if not m3u8_candidates:
+            html = page.content()
+            found = re.findall(r'https?://[^\s"\'<>]+\.m3u8[^\s"\'<>]*', html)
+            m3u8_candidates.extend(found)
+
             for frame in page.frames:
                 try:
                     c = frame.content()
-                    m = re.findall(r'https?://[^\s"\'<>]+\.m3u8[^\s"\'<>]*', c)
-                    for u in m:
-                        if "blob:" not in u:
-                            m3u8_url = u
-                            break
+                    f_found = re.findall(r'https?://[^\s"\'<>]+\.m3u8[^\s"\'<>]*', c)
+                    m3u8_candidates.extend(f_found)
                 except Exception:
                     pass
-    except Exception:
-        pass
-    finally:
-        page.close()
 
-    return m3u8_url
+        # 3. Quét giải mã Base64 chứa link HLS (.m3u8) bị ẩn trong mã JS
+        if not m3u8_candidates:
+            b64_list = re.findall(r'aHR0cD[a-zA-Z0-9+/=]+', page.content())
+            for b64 in b64_list:
+                try:
+                    decoded = base64.b64decode(b64).decode('utf-8', errors='ignore')
+                    if ".m3u8" in decoded:
+                        m3u8_candidates.append(decoded)
+                except Exception:
+                    pass
+
+    except Exception as e:
+        print(f"[!] Lỗi truy cập trang trận đấu {match_url}: {e}")
+
+    # Làm sạch danh sách và ưu tiên chọn master/playlist/live m3u8
+    valid_urls = [u for u in m3u8_candidates if ".m3u8" in u and "blob:" not in u]
+    if valid_urls:
+        # Làm sạch ký tự thừa ở cuối URL
+        cleaned_urls = [re.sub(r'["\'\>\<\;].*$', '', u) for u in valid_urls]
+        
+        # Ưu tiên link chứa keyword luồng phát chính
+        priority = [u for u in cleaned_urls if any(k in u.lower() for k in ["master", "index", "playlist", "live", "hls"])]
+        return priority[0] if priority else cleaned_urls[0]
+
+    return ""
 
 def run_scraper():
     vn_tz = timezone(timedelta(hours=7))
@@ -285,6 +319,7 @@ def run_scraper():
             locale="vi-VN"
         )
 
+        # Lấy danh sách trận đấu từ trang chủ
         for base_url in DOMAINS:
             print(f"[*] Đang kết nối tới: {base_url}")
             try:
@@ -352,7 +387,10 @@ def run_scraper():
         parsed_items = []
         seen_keys = set()
 
-        print(f"[*] Đang bóc tách thông tin và luồng video cho {len(raw_matches)} trận...")
+        # Mở 1 trang riêng để cào luồng m3u8 từng trận
+        stream_page = context.new_page()
+
+        print(f"[*] Đang trích xuất luồng video m3u8 cho {len(raw_matches)} trận đấu...")
         for item in raw_matches:
             url = item['url']
             lines = item['lines']
@@ -381,27 +419,47 @@ def run_scraper():
             full_title = f"{status_dot}{extracted_time} {extracted_date} {sport_icon} {teams_title}{blv_suffix} [hls]"
             logo = get_team_logo(teams_title)
 
-            # Tìm link .m3u8, nếu chưa có thì giữ URL trang làm dự phòng (LUÔN BẢO ĐẢM CÓ DỮ LIỆU)
-            m3u8_stream_url = fetch_m3u8_stream(context, url)
-            play_url = m3u8_stream_url if (m3u8_stream_url and ".m3u8" in m3u8_stream_url) else url
+            # Lấy luồng m3u8 phát trực tiếp
+            m3u8_stream_url = fetch_m3u8_stream(stream_page, url)
 
-            parsed_items.append({
-                "title": full_title,
-                "logo": logo,
-                "play_url": play_url
-            })
+            # CHỈ THÊM VÀO PLAYLIST NẾU CÓ LUỒNG M3U8 THỰC SỰ
+            if m3u8_stream_url and ".m3u8" in m3u8_stream_url:
+                parsed_items.append({
+                    "title": full_title,
+                    "logo": logo,
+                    "play_url": m3u8_stream_url
+                })
+                print(f"[✓] Lấy link m3u8 thành công: {teams_title}")
+            else:
+                print(f"[x] Bỏ qua (Chưa có luồng phát): {teams_title}")
 
+        stream_page.close()
         browser.close()
 
-    # Ghi file M3U Playlist chuẩn mẫu tham khảo
+    # Ghi file M3U Playlist với đầy đủ Headers tương thích mọi App IPTV (TiviMate, OTT Navigator, VLC, Kodi,...)
     with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
         f.write('#EXTM3U\n\n')
         for item in parsed_items:
-            f.write(f'#EXTINF:-1 tvg-logo="{item["logo"]}" group-title="{GROUP_NAME}" , {item["title"]} \n')
-            f.write(f'#EXTVLCOPT:http-referrer={working_domain}/\n')
-            f.write(f'{item["play_url"]}\n\n')
+            play_url = item["play_url"]
+            logo = item["logo"]
+            title = item["title"]
 
-    print(f"[*] Xuất thành công {len(parsed_items)} trận vào {OUTPUT_FILE}")
+            # 1. Khai báo Header chuẩn trong tag #EXTINF
+            f.write(f'#EXTINF:-1 tvg-logo="{logo}" group-title="{GROUP_NAME}" http-user-agent="{USER_AGENT}" http-referrer="{working_domain}/" , {title}\n')
+            
+            # 2. Khai báo Header cho VLC / Perfect Player / Kodi
+            f.write(f'#EXTVLCOPT:http-user-agent={USER_AGENT}\n')
+            f.write(f'#EXTVLCOPT:http-referrer={working_domain}/\n')
+
+            # 3. Thêm Pipe Syntax (|) tương thích 100% với TiviMate & OTT Navigator
+            if "|" not in play_url:
+                stream_entry = f"{play_url}|User-Agent={USER_AGENT}&Referer={working_domain}/"
+            else:
+                stream_entry = play_url
+
+            f.write(f'{stream_entry}\n\n')
+
+    print(f"\n[*] Xuất thành công {len(parsed_items)} trận có luồng phát trực tiếp vào {OUTPUT_FILE}")
 
 if __name__ == "__main__":
     run_scraper()
