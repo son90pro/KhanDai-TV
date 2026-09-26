@@ -37,7 +37,7 @@ KNOWN_BLVS = [
     "Tiền Đạo", "Hậu Vệ", "Họa Mi", "Bia Hơi", "Thánh Dự", "Thần Tài"
 ]
 
-# Từ điển Cờ Quốc Gia chuẩn FlagCDN (Không bao giờ bị chặn 403 trên TV)
+# Từ điển Cờ Quốc Gia chuẩn FlagCDN (Không bao giờ bị lỗi ảnh/chặn 403)
 COUNTRY_FLAGS = {
     "vietnam": "vn", "việt nam": "vn", "viet nam": "vn", "philippines": "ph", "thailand": "th", "thái lan": "th", "thai lan": "th",
     "pakistan": "pk", "indonesia": "id", "malaysia": "my", "singapore": "sg", "myanmar": "mm",
@@ -63,7 +63,6 @@ COUNTRY_FLAGS = {
     "brazil": "br", "argentina": "ar", "uruguay": "uy", "colombia": "co", "chile": "cl", "peru": "pe", "ecuador": "ec"
 }
 
-# Các CLB bóng chuyền/bóng đá nổi tiếng về cờ quốc gia
 CLUB_FLAGS = {
     "imoco": "it", "novara": "it", "milano": "it", "scandicci": "it", "trentino": "it", "lube": "it", "perugia": "it",
     "vakifbank": "tr", "fenerbahce": "tr", "ezzacibasi": "tr",
@@ -215,24 +214,18 @@ def parse_card_lines(lines, url: str):
     return extracted_time, extracted_date, sport_found, teams_title, blv_found
 
 def get_team_logo(teams_str: str) -> str:
-    """Tự động tìm Cờ Quốc Gia / CLB HD từ FlagCDN chuẩn 100%"""
     t_lower = teams_str.lower()
-    
-    # 1. Tìm cờ Quốc Gia
     for country, code in COUNTRY_FLAGS.items():
         pattern = r'\b' + re.escape(country) + r'\b'
         if re.search(pattern, t_lower):
             return f"https://flagcdn.com/w320/{code}.png"
-            
-    # 2. Tìm cờ CLB
     for club, code in CLUB_FLAGS.items():
         if club in t_lower:
             return f"https://flagcdn.com/w320/{code}.png"
-
     return DEFAULT_FLAG
 
 def fetch_m3u8_stream(context, match_url: str) -> str:
-    """Tự động mở trang và bắt chính xác luồng .m3u8 trực tiếp từ phaohoa.live"""
+    """Tự động tìm luồng m3u8 phát trực tiếp"""
     m3u8_url = ""
     page = context.new_page()
 
@@ -242,20 +235,12 @@ def fetch_m3u8_stream(context, match_url: str) -> str:
         if ".m3u8" in u and "blob:" not in u and not m3u8_url:
             m3u8_url = u
 
-    def handle_response(response):
-        nonlocal m3u8_url
-        u = response.url
-        if ".m3u8" in u and "blob:" not in u and not m3u8_url:
-            m3u8_url = u
-
     page.on("request", handle_request)
-    page.on("response", handle_response)
 
     try:
-        page.goto(match_url, timeout=15000, wait_until="domcontentloaded")
-        time.sleep(2.0)
+        page.goto(match_url, timeout=10000, wait_until="domcontentloaded")
+        time.sleep(1.5)
 
-        # Quét m3u8 trong HTML/JS nếu request không bắt được ngay
         if not m3u8_url:
             content = page.content()
             matches = re.findall(r'https?://[^\s"\'<>]+\.m3u8[^\s"\'<>]*', content)
@@ -367,7 +352,7 @@ def run_scraper():
         parsed_items = []
         seen_keys = set()
 
-        print(f"[*] Đang bóc tách luồng .m3u8 trực tiếp cho {len(raw_matches)} trận...")
+        print(f"[*] Đang bóc tách thông tin và luồng video cho {len(raw_matches)} trận...")
         for item in raw_matches:
             url = item['url']
             lines = item['lines']
@@ -396,16 +381,15 @@ def run_scraper():
             full_title = f"{status_dot}{extracted_time} {extracted_date} {sport_icon} {teams_title}{blv_suffix} [hls]"
             logo = get_team_logo(teams_title)
 
-            # Lấy luồng m3u8 thực tế
+            # Tìm link .m3u8, nếu chưa có thì giữ URL trang làm dự phòng (LUÔN BẢO ĐẢM CÓ DỮ LIỆU)
             m3u8_stream_url = fetch_m3u8_stream(context, url)
-            
-            # CHỈ lưu kênh khi đã có link .m3u8 phát được (Tránh xuất link web HTML gây lỗi phát)
-            if m3u8_stream_url and ".m3u8" in m3u8_stream_url:
-                parsed_items.append({
-                    "title": full_title,
-                    "logo": logo,
-                    "play_url": m3u8_stream_url
-                })
+            play_url = m3u8_stream_url if (m3u8_stream_url and ".m3u8" in m3u8_stream_url) else url
+
+            parsed_items.append({
+                "title": full_title,
+                "logo": logo,
+                "play_url": play_url
+            })
 
         browser.close()
 
@@ -417,7 +401,7 @@ def run_scraper():
             f.write(f'#EXTVLCOPT:http-referrer={working_domain}/\n')
             f.write(f'{item["play_url"]}\n\n')
 
-    print(f"[*] Xuất thành công {len(parsed_items)} trận có luồng m3u8 vào {OUTPUT_FILE}")
+    print(f"[*] Xuất thành công {len(parsed_items)} trận vào {OUTPUT_FILE}")
 
 if __name__ == "__main__":
     run_scraper()
