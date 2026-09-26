@@ -1,2 +1,67 @@
 #EXTM3U
 
+#EXTINF:-1 tvg-logo="https://flagcdn.com/w320/un.png" group-title="Khán Đài TV", 🟢 20:00 26/09 ⚽ Trận đấu Trực Tiếp (Khán Đài TV) [FHD] [hls]
+#EXTVLCOPT:http-referrer=https://khandai1.link/
+#EXTVLCOPT:http-user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36
+https://stream.khandai.link/hls/khandai1hd/playlist.m3u8|Referer=https://khandai1.link/&User-Agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36
+
+#EXTINF:-1 tvg-logo="https://flagcdn.com/w320/un.png" group-title="Khán Đài TV", 🟢 19:30 26/09 ⚽ Trận đấu Trực Tiếp (Tày) [FHD] [hls]
+#EXTVLCOPT:http-referrer=https://khandai1.link/
+#EXTVLCOPT:http-user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36
+https://stream.khandai.link/hls/tayhd/playlist.m3u8|Referer=https://khandai1.link/&User-Agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36
+
+#EXTINF:-1 tvg-logo="https://flagcdn.com/w320/un.png" group-title="Khán Đài TV", 🟢 20:30 26/09 ⚽ Trận đấu Trực Tiếp (Enzo) [FHD] [hls]
+#EXTVLCOPT:http-referrer=https://khandai1.link/
+#EXTVLCOPT:http-user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36
+https://stream.khandai.link/hls/enzohd/playlist.m3u8|Referer=https://khandai1.link/&User-Agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36
+
+#EXTINF:-1 tvg-logo="https://flagcdn.com/w320/fi.png" group-title="Khán Đài TV", 🟢 22:00 26/09 ⚽ 09
+Bóng Chuyền
+Vô Địch Châu Âu
+Phần Lan vs Sắp Diễn Ra
+Slovenia
+Tày (Tày) [FHD] [hls]
+#EXTVLCOPT:http-referrer=https://khandai1.link/
+#EXTVLCOPT:http-user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36
+https://stream.khandai.link/hls/tayhd/playlist.m3u8|Referer=https://khandai1.link/&User-Agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36
+
+#EXTINF:-1 tvg-logo="https://flagcdn.com/w320/kw.png" group-title="Khán Đài TV", 🟢 22:55 26/09 ⚽ 09
+Bóng Đá
+Gulf Cup Of Nations
+Kuwait vs Sắp Diễn Ra
+Iraq
+Kền Kền (Kền Kền) [FHD] [hls]
+#EXTVLCOPT:http-referrer=https://khandai1.link/
+#EXTVLCOPT:http-user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36
+https://stream.khandai.link/hls/kenkenhd/playlist.m3u8|Referer=https://khandai1.link/&User-Agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36
+
+#EXTINF:-1 tvg-logo="https://flagcdn.com/w320/bg.png" group-title="Khán Đài TV", 🟢 23:00 26/09 ⚽ 09
+Bóng Đá
+Uefa Nations League
+Bulgaria vs Sắp Diễn Ra
+Luxembourg
+Tiểu Mây (Tiểu Mây) [FHD] [hls]
+#EXTVLCOPT:http-referrer=https://khandai1.link/
+#EXTVLCOPT:http-user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36
+https://stream.khandai.link/hls/tieumayhd/playlist.m3u8|Referer=https://khandai1.link/&User-Agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36
+
+#EXTINF:-1 tvg-logo="https://flagcdn.com/w320/un.png" group-title="Khán Đài TV", 🟢 23:00 26/09 ⚽ 09
+Bóng Đá
+Uefa Nations League
+Iceland vs Sắp Diễn Ra
+Estonia
+Pháo Thủ (Pháo Thủ) [FHD] [hls]
+#EXTVLCOPT:http-referrer=https://khandai1.link/
+#EXTVLCOPT:http-user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36
+https://stream.khandai.link/hls/phaothuhd/playlist.m3u8|Referer=https://khandai1.link/&User-Agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36
+
+#EXTINF:-1 tvg-logo="https://flagcdn.com/w320/fi.png" group-title="Khán Đài TV", 🟢 23:00 26/09 ⚽ 09
+Bóng Đá
+Uefa Nations League
+San Marino vs Sắp Diễn Ra
+Finland
+Enzo (Enzo) [FHD] [hls]
+#EXTVLCOPT:http-referrer=https://khandai1.link/
+#EXTVLCOPT:http-user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36
+https://stream.khandai.link/hls/enzohd/playlist.m3u8|Referer=https://khandai1.link/&User-Agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36
+
