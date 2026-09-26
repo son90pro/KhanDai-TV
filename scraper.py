@@ -4,7 +4,7 @@ import unicodedata
 from datetime import datetime, timezone, timedelta
 from playwright.sync_api import sync_playwright
 
-# Danh sách tên miền dự phòng của Khán Đài TV
+# Danh sách tên miền dự phòng Khán Đài TV
 DOMAINS = [
     "https://khandai1.link",
     "https://khandai.link",
@@ -28,15 +28,15 @@ SPORT_ICONS = {
     "cầu lông": "🏸"
 }
 
-# Danh sách BLV Khán Đài TV chuẩn
+# Danh sách BLV Khán Đài TV chuẩn (Gồm các tên ngắn dễ bị nhầm làm Tên Đội)
 KNOWN_BLVS = [
-    "Chim Nhỏ", "Tây", "Lee Sin", "Pháo Thủ", "Kền Kền", "Tiểu Mây",
+    "Chim Nhỏ", "Tây", "Tay", "Lee Sin", "Pháo Thủ", "Kền Kền", "Tiểu Mây", "Enzo",
     "Giga", "Sư Tử", "Voi Con", "Gà Rừng", "Hắc Cáo", "Lão Đại", "Táo Quân",
     "Bắp Cày", "Rồng Vàng", "Cú Mèo", "Sóc Nâu", "Khỉ Vàng", "Cá Chép",
-    "Trâu Chiến", "Đèn Mờ", "Khám Phá", "Tên Sát"
+    "Trâu Chiến", "Đèn Mờ", "Khám Phá", "Tên Sát", "Batman", "Spider"
 ]
 
-# Từ điển Cờ Quốc Gia & Vùng lãnh thổ
+# Từ điển Cờ Quốc Gia & Vùng lãnh thổ chuẩn HD
 COUNTRY_FLAGS = {
     "vietnam": "vn", "việt nam": "vn", "viet nam": "vn", "philippines": "ph", "thailand": "th", "thái lan": "th", "thai lan": "th",
     "pakistan": "pk", "indonesia": "id", "malaysia": "my", "singapore": "sg", "myanmar": "mm",
@@ -57,24 +57,90 @@ COUNTRY_FLAGS = {
     "georgia": "ge", "armenia": "am", "azerbaijan": "az", "cyprus": "cy", "estonia": "ee", "latvia": "lv",
     "bulgaria": "bg", "south africa": "za", "nam phi": "za", "egypt": "eg", "ai cập": "eg", "morocco": "ma", "ma rốc": "ma",
     "usa": "us", "mỹ": "us", "mexico": "mx", "canada": "ca", "costa rica": "cr", "panama": "pa", "jamaica": "jm",
-    "brazil": "br", "argentina": "ar", "uruguay": "uy", "colombia": "co", "chile": "cl", "peru": "pe", "ecuador": "ec"
+    "brazil": "br", "argentina": "ar", "uruguay": "uy", "colombia": "co", "chile": "cl", "peru": "pe", "ecuador": "ec",
+    "luxembourg": "lu"
 }
 
-# Các từ khóa rác tuyệt đối không làm tên đội
-JUNK_EXACT = [
-    "bóng đá", "bóng chuyền", "bóng rổ", "billiards", "bida", "bóng bàn", "tennis", "cầu lông",
-    "cược f888", "cược sv368", "cược fb88", "cược", "f888", "sv368", "fb88",
-    "sắp diễn ra", "đang diễn ra", "hiệp 1", "hiệp 2", "hoàn tất", "kết thúc", "vs", "trực tiếp"
+JUNK_KEYWORDS = [
+    "bxh", "lịch thi đấu", "top nhà cái", "nhà cái", "bảng xếp hạng", "tin tức", "hướng dẫn",
+    "cược", "f888", "sv368", "fb88", "sắp diễn ra", "đang diễn ra", "hiệp 1", "hiệp 2",
+    "bóng đá", "bóng chuyền", "bóng rổ", "billiards", "bida", "bóng bàn", "tennis", "cầu lông", "trực tiếp"
 ]
 
-def clean_team_word(name: str) -> str:
-    if not name:
-        return ""
+def is_blv_name(text: str) -> bool:
+    """Kiểm tra một chuỗi xem có phải tên BLV không"""
+    if not text: return False
+    t_low = text.strip().lower()
+    for b in KNOWN_BLVS:
+        if b.lower() == t_low or f"blv {b.lower()}" == t_low or f"caster {b.lower()}" == t_low:
+            return True
+    return False
+
+def clean_team_name(name: str) -> str:
+    if not name: return ""
     name = re.sub(r'^\d+[\.\s]*', '', name)
+    for blv in KNOWN_BLVS:
+        name = re.sub(r'\b' + re.escape(blv) + r'\b', '', name, flags=re.IGNORECASE)
+    for jk in JUNK_KEYWORDS:
+        name = re.sub(r'\b' + re.escape(jk) + r'\b', '', name, flags=re.IGNORECASE)
     return name.strip()
 
+def extract_from_url_slug(url: str):
+    """Bóc tách Tên 2 Đội & BLV từ URL slug khi DOM không đủ thông tin"""
+    match_slug = re.search(r'/(?:truc-tiep|match|live|room|xem|phong|link|stream|xem-bong-da|truc-tiep-bong-da)/([^/?#]+)', url)
+    if not match_slug:
+        return "", ""
+
+    slug = match_slug.group(1).lower()
+    if '-vs-' not in slug:
+        return "", ""
+
+    parts = slug.split('-vs-')
+    left, right = parts[0], parts[1]
+
+    blv_found = ""
+
+    # Trích xuất BLV từ vế trái
+    left_clean = re.sub(r'^(?:blv|caster|ga)[-_]+', '', left)
+    for b in KNOWN_BLVS:
+        b_slug = b.lower().replace(' ', '-').replace('đ', 'd')
+        if left_clean.startswith(b_slug + "-"):
+            blv_found = b
+            left_clean = left_clean[len(b_slug)+1:]
+            break
+
+    # Trích xuất BLV từ vế phải
+    right_clean = right
+    for b in KNOWN_BLVS:
+        b_slug = b.lower().replace(' ', '-').replace('đ', 'd')
+        pattern = r'-(?:blv|caster|ga)?[-_]*' + re.escape(b_slug) + r'$'
+        if re.search(pattern, right_clean):
+            if not blv_found:
+                blv_found = b
+            right_clean = re.sub(pattern, '', right_clean)
+            break
+
+    right_clean = re.sub(r'-(?:luc|ngay|time|\d{2}h\d{2}|\d{3,12}).*$', '', right_clean)
+    right_clean = re.sub(r'-\d{1,2}-\d{1,2}-\d{4}.*$', '', right_clean)
+
+    t1_words = [w.capitalize() for w in left_clean.split('-') if w and not w.isdigit() and not is_blv_name(w)]
+    t2_words = [w.capitalize() for w in right_clean.split('-') if w and not w.isdigit() and not is_blv_name(w)]
+
+    t1_str = " ".join(t1_words).strip()
+    t2_str = " ".join(t2_words).strip()
+
+    t1_str = re.sub(r'\bViet Nam\b', 'Việt Nam', t1_str, flags=re.I)
+    t1_str = re.sub(r'\bThai Lan\b', 'Thái Lan', t1_str, flags=re.I)
+    t2_str = re.sub(r'\bViet Nam\b', 'Việt Nam', t2_str, flags=re.I)
+    t2_str = re.sub(r'\bThai Lan\b', 'Thái Lan', t2_str, flags=re.I)
+
+    teams = ""
+    if t1_str and t2_str and t1_str.lower() != t2_str.lower():
+        teams = f"{t1_str} vs {t2_str}"
+
+    return teams, blv_found
+
 def parse_card_lines(lines, url: str):
-    """Bóc tách thông tin chính xác từng dòng của thẻ trận đấu"""
     extracted_time = ""
     extracted_date = ""
     blv_found = ""
@@ -88,73 +154,61 @@ def parse_card_lines(lines, url: str):
 
         line_low = line_clean.lower()
 
-        # 1. Lấy Giờ thi đấu
+        # 1. Bỏ qua Menu rác (BXH, Nhà cái, Tin tức)
+        if any(jk in line_low for jk in ["bxh", "lịch thi đấu", "top nhà cái", "bảng xếp hạng", "tin tức"]):
+            continue
+
+        # 2. Bóc tách Giờ thi đấu
         if not extracted_time:
             time_m = re.search(r'\b(2[0-3]|[0-1]?\d)[:h](\d{2})\b', line_clean)
             if time_m:
                 extracted_time = f"{time_m.group(1).zfill(2)}:{time_m.group(2)}"
 
-        # 2. Lấy Ngày thi đấu
+        # 3. Bóc tách Ngày thi đấu
         if not extracted_date:
             date_m = re.search(r'\b(\d{1,2})[-/.](\d{1,2})\b', line_clean)
             if date_m:
                 extracted_date = f"{date_m.group(1).zfill(2)}/{date_m.group(2).zfill(2)}"
 
-        # 3. Lấy tên BLV
+        # 4. Nhận diện BLV
         if not blv_found:
             for b in KNOWN_BLVS:
-                if b.lower() == line_low or b.lower() in line_low:
+                if b.lower() == line_low or f"blv {b.lower()}" in line_low or f"caster {b.lower()}" in line_low:
                     blv_found = b
                     break
 
-        # 4. Nhận diện môn thể thao
+        if is_blv_name(line_clean):
+            continue
+
+        # 5. Môn thể thao
         for sp, icon in SPORT_ICONS.items():
             if sp in line_low:
                 sport_found = icon
                 break
 
-        # 5. Lọc bỏ các dòng rác
-        if any(junk == line_low or junk in line_low for junk in JUNK_EXACT):
+        # Bỏ qua các dòng chứa thông số giờ/ngày hoặc rác
+        if any(junk == line_low or junk in line_low for junk in JUNK_KEYWORDS):
             continue
         if re.search(r'\d{1,2}[:h/]\d{2}', line_clean):
-            continue
-        if blv_found and blv_found.lower() in line_low:
             continue
 
         if len(line_clean) >= 2 and len(line_clean) <= 35:
             candidates.append(line_clean)
 
-    # Trích xuất Tên 2 Đội từ danh sách ứng viên còn lại
     teams_title = ""
     if len(candidates) >= 2:
-        # Nếu có dòng tên giải đấu ở đầu, lấy 2 dòng cuối cùng
-        t1 = clean_team_word(candidates[-2])
-        t2 = clean_team_word(candidates[-1])
-        if t1 and t2 and t1.lower() != t2.lower():
+        t1 = clean_team_name(candidates[-2])
+        t2 = clean_team_name(candidates[-1])
+        if t1 and t2 and t1.lower() != t2.lower() and not is_blv_name(t1) and not is_blv_name(t2):
             teams_title = f"{t1} vs {t2}"
 
-    # Nếu trích xuất dòng thất bại, giải mã từ URL Slug
-    if not teams_title:
-        match_slug = re.search(r'/(?:truc-tiep|match|live|room|xem|phong)/([^/?#]+)', url)
-        if match_slug and '-vs-' in match_slug.group(1):
-            parts = match_slug.group(1).split('-vs-')
-            left = re.sub(r'^(?:blv|caster|ga)[-_]+[a-z0-9-_]+?[-_]+', '', parts[0], flags=re.I)
-            left = re.sub(r'^(?:blv|caster|ga)[-_]*', '', left, flags=re.I)
-            right = re.sub(r'-(?:luc|ngay|time|\d{2}h\d{2}|\d{3,12}).*$', '', parts[1], flags=re.I)
+    # Giải mã từ URL Slug nếu DOM bị dính tên BLV
+    teams_from_slug, blv_from_slug = extract_from_url_slug(url)
 
-            t1_words = [w.capitalize() for w in left.split('-') if w and not w.isdigit()]
-            t2_words = [w.capitalize() for w in right.split('-') if w and not w.isdigit()]
-
-            t1_str = " ".join(t1_words).strip()
-            t2_str = " ".join(t2_words).strip()
-
-            t1_str = re.sub(r'\bViet Nam\b', 'Việt Nam', t1_str, flags=re.I)
-            t1_str = re.sub(r'\bThai Lan\b', 'Thái Lan', t1_str, flags=re.I)
-            t2_str = re.sub(r'\bViet Nam\b', 'Việt Nam', t2_str, flags=re.I)
-            t2_str = re.sub(r'\bThai Lan\b', 'Thái Lan', t2_str, flags=re.I)
-
-            if t1_str and t2_str:
-                teams_title = f"{t1_str} vs {t2_str}"
+    if teams_from_slug:
+        teams_title = teams_from_slug
+    if not blv_found and blv_from_slug:
+        blv_found = blv_from_slug
 
     if not teams_title:
         teams_title = "Trận đấu Trực Tiếp"
@@ -162,7 +216,6 @@ def parse_card_lines(lines, url: str):
     return extracted_time, extracted_date, sport_found, teams_title, blv_found
 
 def get_team_logo(teams_str: str) -> str:
-    """Tự động tìm Cờ Quốc Gia tương ứng"""
     t_lower = teams_str.lower()
     for country_name, code in COUNTRY_FLAGS.items():
         pattern = r'\b' + re.escape(country_name) + r'\b'
@@ -195,8 +248,9 @@ def run_scraper():
                 page.goto(base_url, timeout=35000, wait_until="domcontentloaded")
                 time.sleep(3)
 
-                for _ in range(5):
-                    page.evaluate("window.scrollBy(0, 800)")
+                # Cuộn trang nhiều lần để nạp 100% danh sách trận đấu
+                for _ in range(8):
+                    page.evaluate("window.scrollBy(0, 1000)")
                     time.sleep(0.4)
 
                 extracted = page.evaluate('''() => {
@@ -207,6 +261,9 @@ def run_scraper():
                     links.forEach(link => {
                         const href = link.getAttribute('href') || '';
                         if (!href || href === '/' || href.startsWith('#')) return;
+                        
+                        // Lọc bỏ triệt để các link Menu rác
+                        if (/(bxh|top-nha-cai|lich-thi-dau|tin-tuc|huong-dan)/i.test(href)) return;
                         if (!/(truc-tiep|match|live|room|xem|phong|stream|bong-da)/i.test(href)) return;
 
                         const fullUrl = href.startsWith('http') ? href : window.location.origin + href;
@@ -223,6 +280,8 @@ def run_scraper():
                         }
 
                         const text = container ? (container.innerText || '') : (link.innerText || '');
+                        if (text.includes('BXH & LỊCH THI ĐẤU') || text.includes('TOP NHÀ CÁI')) return;
+
                         const lines = text.split('\\n').map(l => l.trim()).filter(l => l.length > 0);
 
                         if (lines.length > 0) {
@@ -256,12 +315,17 @@ def run_scraper():
     for item in raw_matches:
         url = item['url']
         if url in seen_urls: continue
-        seen_urls.add(url)
 
         lines = item['lines']
         raw_text = item['rawText']
 
         extracted_time, extracted_date, sport_icon, teams_title, blv_name = parse_card_lines(lines, url)
+
+        # Loại bỏ nếu thẻ là link rác menu
+        if "BXH" in teams_title or "TOP NHÀ CÁI" in teams_title:
+            continue
+
+        seen_urls.add(url)
 
         if not extracted_time:
             extracted_time = "19:30"
@@ -272,7 +336,6 @@ def run_scraper():
         status_dot = "🟢 " if is_currently_live else ""
         blv_suffix = f" ({blv_name})" if blv_name else ""
 
-        # Tiêu đề kênh chuẩn 100% hình mẫu: 🟢 16:00 26/09 ⚽ Pakistan vs Thái Lan (Chim Nhỏ) [hls]
         full_title = f"{status_dot}{extracted_time} {extracted_date} {sport_icon} {teams_title}{blv_suffix} [hls]"
         logo = get_team_logo(teams_title)
 
