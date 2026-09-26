@@ -1,10 +1,15 @@
 import time
 import re
 from datetime import datetime, timezone, timedelta
-from urllib.parse import quote
 from playwright.sync_api import sync_playwright
 
-BASE_URL = "https://khandai1.link"
+# Danh sách tên miền dự phòng của Khán Đài TV
+DOMAINS = [
+    "https://khandai1.link",
+    "https://khandai.link",
+    "https://khandai.tv"
+]
+
 OUTPUT_FILE = "playlist.m3u"
 GROUP_NAME = "Khán Đài TV"
 GAVANG_LOGO = "https://i.postimg.cc/6pt402sd/logo-gavangtv.jpg"
@@ -54,10 +59,9 @@ COUNTRY_FLAGS = {
     "tunisia": "tn", "mali": "ml", "burkina faso": "bf", "congo": "cg", "dr congo": "cd", "zambia": "zm",
     "gabon": "ga", "angola": "ao", "uganda": "ug", "mozambique": "mz", "madagascar": "mg", "sudan": "sd",
 
-    # Bắc, Trung Mỹ & CONCACAF
+    # Bắc, Trung Mỹ
     "usa": "us", "mỹ": "us", "mexico": "mx", "canada": "ca", "costa rica": "cr", "panama": "pa",
     "jamaica": "jm", "honduras": "hn", "el salvador": "sv", "guatemala": "gt", "haiti": "ht",
-    "trinidad": "tt", "martinique": "mq", "curacao": "cw", "barbados": "bb", "saint lucia": "lc",
 
     # Nam Mỹ
     "brazil": "br", "argentina": "ar", "uruguay": "uy", "colombia": "co", "chile": "cl",
@@ -65,8 +69,8 @@ COUNTRY_FLAGS = {
 }
 
 def get_team_logo_url(teams_str: str, raw_team1_logo: str = "") -> str:
-    """Ưu tiên lấy ảnh Cờ Đội 1 từ web, nếu không có sẽ tìm trong COUNTRY_FLAGS"""
-    if raw_team1_logo and raw_team1_logo.startswith("http") and "logo" not in raw_team1_logo.lower():
+    """Tự động khớp Cờ quốc gia hoặc lấy ảnh Đội 1 từ web"""
+    if raw_team1_logo and raw_team1_logo.startswith("http") and "logo" not in raw_team1_logo.lower() and "default" not in raw_team1_logo.lower():
         return raw_team1_logo
 
     t_lower = teams_str.lower()
@@ -138,295 +142,174 @@ def parse_time_robust(url: str, text: str) -> str:
     if url_luc_4:
         return f"{url_luc_4.group(1).zfill(2)}:{url_luc_4.group(2)}"
 
-    return "00:00"
-
-def parse_datetime_obj(date_str: str, time_str: str, vn_tz) -> datetime:
-    now = datetime.now(vn_tz)
-    try:
-        d, m = map(int, date_str.split('/'))
-        h, mins = map(int, time_str.split(':'))
-        yr = now.year
-        if now.month == 12 and m == 1: yr += 1
-        elif now.month == 1 and m == 12: yr -= 1
-        return datetime(yr, m, d, h, mins, tzinfo=vn_tz)
-    except Exception:
-        return datetime(2099, 1, 1, 0, 0, tzinfo=vn_tz)
-
-def get_match_details(context, match_url):
-    page = context.new_page()
-    m3u8_found = []
-
-    def handle_net(req_or_res):
-        u = req_or_res.url
-        if ".m3u8" in u and "blob:" not in u and u not in m3u8_found:
-            m3u8_found.append(u)
-
-    page.on("request", handle_net)
-    page.on("response", handle_net)
-    
-    match_info = {"time_str": "", "m3u8_url": "", "is_live": False}
-
-    try:
-        page.goto(match_url, timeout=12000, wait_until="domcontentloaded")
-        time.sleep(1)
-        
-        for selector in ['.play-btn', '.btn-play', '#player', 'iframe', 'video', '.player-wrapper', 'button']:
-            try:
-                page.click(selector, timeout=600)
-                time.sleep(0.3)
-            except Exception:
-                pass
-
-        for _ in range(5):
-            if m3u8_found:
-                break
-            time.sleep(0.4)
-
-        if not m3u8_found:
-            for frame in page.frames:
-                try:
-                    content = frame.content()
-                    urls = re.findall(r'https?://[^\s"\'<>]+\.m3u8[^\s"\'<>]*', content)
-                    for u in urls:
-                        if "blob:" not in u and u not in m3u8_found:
-                            m3u8_found.append(u)
-                except Exception:
-                    pass
-
-        match_info["m3u8_url"] = m3u8_found[0] if m3u8_found else ""
-
-        details = page.evaluate('''() => {
-            let tStr = "";
-            let liveState = false;
-            const fullBody = document.body.innerText || '';
-            if (/(hiệp 1|hiệp 2|hiệp phụ|h1|h2|đang đá|đang diễn ra|\\d+['’])/i.test(fullBody)) {
-                liveState = true;
-            }
-            const timeEls = Array.from(document.querySelectorAll('span, div, p, time, b'));
-            for (let el of timeEls) {
-                const text = el.innerText ? el.innerText.trim() : '';
-                if (/\\d{1,2}[:h]\\d{2}/.test(text) && text.length < 30) {
-                    tStr = text;
-                    break;
-                }
-            }
-            return { timeStr: tStr, liveState: liveState };
-        }''')
-
-        if details['timeStr']: match_info["time_str"] = details['timeStr']
-        match_info["is_live"] = details['liveState'] or bool(match_info["m3u8_url"])
-
-    except Exception:
-        pass
-    finally:
-        page.close()
-
-    return match_info
+    return "20:00"
 
 def run_scraper():
     vn_tz = timezone(timedelta(hours=7))
     today_str = datetime.now(vn_tz).strftime("%d/%m")
-    final_matches = []
+    raw_matches = []
+    working_domain = DOMAINS[0]
 
     with sync_playwright() as p:
         browser = p.chromium.launch(
             headless=True,
-            args=["--disable-blink-features=AutomationControlled", "--no-sandbox", "--disable-setuid-sandbox"]
+            args=[
+                "--disable-blink-features=AutomationControlled",
+                "--no-sandbox",
+                "--disable-setuid-sandbox",
+                "--disable-dev-shm-usage",
+                "--disable-gpu"
+            ]
         )
         context = browser.new_context(
             user_agent=USER_AGENT,
-            viewport={"width": 1280, "height": 720},
+            viewport={"width": 1366, "height": 768},
             timezone_id="Asia/Ho_Chi_Minh",
             locale="vi-VN"
         )
-        page = context.new_page()
 
-        try:
-            print(f"[*] Đang kết nối Khán Đài TV: {BASE_URL}")
-            page.goto(BASE_URL, timeout=60000, wait_until="domcontentloaded")
-            time.sleep(2)
+        for base_url in DOMAINS:
+            print(f"[*] Đang thử kết nối tới: {base_url}")
+            try:
+                page = context.new_page()
+                page.goto(base_url, timeout=30000, wait_until="domcontentloaded")
+                time.sleep(2.5)
 
-            # 1. Kích hoạt chuyển qua các tab môn thể thao để cào đầy đủ tất cả các môn
-            page.evaluate('''() => {
-                const tabs = document.querySelectorAll('button, .tab, .menu-item, [class*="tab"]');
-                tabs.forEach(tab => {
-                    const txt = tab.innerText ? tab.innerText.toLowerCase() : '';
-                    if (txt.includes('tất cả') || txt.includes('bóng đá') || txt.includes('bóng chuyền') || txt.includes('bóng rổ') || txt.includes('billiards') || txt.includes('bóng bàn')) {
-                        try { tab.click(); } catch(e){}
-                    }
-                });
-            }''')
-            time.sleep(1)
+                for _ in range(4):
+                    page.evaluate("window.scrollBy(0, 800)")
+                    time.sleep(0.4)
 
-            for _ in range(4):
-                page.evaluate("window.scrollBy(0, 800)")
-                time.sleep(0.4)
+                extracted = page.evaluate('''() => {
+                    const matches = [];
+                    const links = Array.from(document.querySelectorAll('a[href]'));
+                    const seenUrls = new Set();
 
-            # 2. Bóc tách thẻ trận đấu từ HTML DOM
-            raw_matches = page.evaluate('''() => {
-                const matches = [];
-                const links = Array.from(document.querySelectorAll('a[href*="/truc-tiep/"], a[href*="/match/"], a[href*="/live/"], a[href*="/xem/"], a[href*="/room/"], a[href*="/phong/"], a[href*="/truc-tiep-bong-da/"], a[href*="/xem-bong-da/"]'));
-                const seenUrls = new Set();
+                    links.forEach(link => {
+                        const href = link.getAttribute('href') || '';
+                        if (!href) return;
+                        
+                        const isMatchUrl = /(truc-tiep|match|live|room|xem|phong|link|stream|bong-da)/i.test(href);
+                        if (!isMatchUrl) return;
 
-                links.forEach(link => {
-                    const href = link.getAttribute('href');
-                    if (!href) return;
+                        const fullUrl = href.startsWith('http') ? href : window.location.origin + href;
+                        if (seenUrls.has(fullUrl) || fullUrl.endsWith('#') || fullUrl === window.location.origin + '/') return;
+                        seenUrls.add(fullUrl);
 
-                    const fullUrl = href.startsWith('http') ? href : window.location.origin + href;
-                    if (seenUrls.has(fullUrl)) return;
-                    seenUrls.add(fullUrl);
-
-                    let card = link;
-                    let parent = link.parentElement;
-                    while (parent && parent.tagName !== 'BODY') {
-                        if (parent.querySelectorAll('a').length <= 2) {
-                            card = parent;
-                            parent = parent.parentElement;
-                        } else {
-                            break;
-                        }
-                    }
-
-                    const fullText = card ? card.innerText || '' : link.innerText || '';
-                    const textLower = fullText.toLowerCase();
-
-                    // Xác định môn thể thao
-                    let sport = "bóng đá";
-                    if (textLower.includes('bóng chuyền') || textLower.includes('volleyball')) sport = "bóng chuyền";
-                    else if (textLower.includes('bóng rổ') || textLower.includes('basketball')) sport = "bóng rổ";
-                    else if (textLower.includes('billiards') || textLower.includes('bida') || textLower.includes('pool')) sport = "billiards";
-                    else if (textLower.includes('bóng bàn') || textLower.includes('table tennis')) sport = "bóng bàn";
-                    else if (textLower.includes('tennis') || textLower.includes('quần vợt')) sport = "tennis";
-
-                    // Trích xuất Tên 2 Đội
-                    let team1 = '', team2 = '';
-                    const teamEls = card.querySelectorAll('[class*="team"], [class*="club"], [class*="name"]');
-                    if (teamEls.length >= 2) {
-                        team1 = teamEls[0].innerText.trim();
-                        team2 = teamEls[1].innerText.trim();
-                    }
-
-                    // Trích xuất Ảnh Đội 1 (Cờ quốc gia)
-                    let team1Logo = '';
-                    const imgs = card.querySelectorAll('img');
-                    imgs.forEach(img => {
-                        if (!team1Logo) {
-                            const src = img.getAttribute('src') || img.getAttribute('data-src') || '';
-                            if (src && !src.includes('avatar') && !src.includes('icon') && !src.includes('banner') && !src.includes('logo')) {
-                                team1Logo = src.startsWith('//') ? 'https:' + src : (src.startsWith('http') ? src : window.location.origin + src);
+                        let card = link;
+                        let parent = link.parentElement;
+                        while (parent && parent.tagName !== 'BODY') {
+                            if (parent.innerText && parent.innerText.length > 15 && parent.innerText.length < 600) {
+                                card = parent;
+                                break;
                             }
+                            parent = parent.parentElement;
                         }
+
+                        const fullText = card ? (card.innerText || '') : (link.innerText || '');
+                        const textLower = fullText.toLowerCase();
+
+                        // Xác định môn thể thao
+                        let sport = "bóng đá";
+                        if (textLower.includes('bóng chuyền') || textLower.includes('volleyball')) sport = "bóng chuyền";
+                        else if (textLower.includes('bóng rổ') || textLower.includes('basketball')) sport = "bóng rổ";
+                        else if (textLower.includes('billiards') || textLower.includes('bida') || textLower.includes('pool')) sport = "billiards";
+                        else if (textLower.includes('bóng bàn') || textLower.includes('table tennis')) sport = "bóng bàn";
+                        else if (textLower.includes('tennis') || textLower.includes('quần vợt')) sport = "tennis";
+
+                        // Lấy logo Đội 1
+                        let team1Logo = '';
+                        const imgs = card.querySelectorAll('img');
+                        imgs.forEach(img => {
+                            if (!team1Logo) {
+                                const src = img.getAttribute('src') || img.getAttribute('data-src') || '';
+                                if (src && !src.includes('avatar') && !src.includes('icon') && !src.includes('banner') && !src.includes('logo')) {
+                                    team1Logo = src.startsWith('//') ? 'https:' + src : (src.startsWith('http') ? src : window.location.origin + src);
+                                }
+                            }
+                        });
+
+                        matches.push({
+                            url: fullUrl,
+                            fullText: fullText,
+                            sport: sport,
+                            team1Logo: team1Logo
+                        });
                     });
 
-                    // Trích xuất Tên BLV
-                    let blv = '';
-                    const blvEl = card.querySelector('[class*="blv"], [class*="caster"], [class*="commentator"], [class*="author"]');
-                    if (blvEl) {
-                        blv = blvEl.innerText.trim();
-                    }
+                    return matches;
+                }''')
 
-                    matches.push({
-                        url: fullUrl,
-                        fullText: fullText,
-                        sport: sport,
-                        team1: team1,
-                        team2: team2,
-                        team1Logo: team1Logo,
-                        blv: blv
-                    });
-                });
+                page.close()
+                if extracted and len(extracted) > 0:
+                    raw_matches = extracted
+                    working_domain = base_url
+                    print(f"[+] Lấy thành công {len(raw_matches)} trận từ {base_url}")
+                    break
+            except Exception as e:
+                print(f"[!] Lỗi kết nối {base_url}: {e}")
 
-                return matches;
-            }''')
+        browser.close()
 
-            page.close()
-            print(f"[*] Đã cào được {len(raw_matches)} trận từ tất cả các môn thể thao.")
+    parsed_items = []
+    seen_urls = set()
 
-            parsed_items = []
-            for item in raw_matches:
-                text, url = item['fullText'], item['url']
-                if not text: continue
+    for item in raw_matches:
+        url = item['url']
+        if url in seen_urls: continue
+        seen_urls.add(url)
 
-                details = get_match_details(context, url)
-                raw_time_text = details['time_str'] if details['time_str'] else text
-                extracted_time = parse_time_robust(url, raw_time_text)
-                match_date = parse_date_info(url, text, today_str)
+        text = item['fullText']
+        extracted_time = parse_time_robust(url, text)
+        match_date = parse_date_info(url, text, today_str)
 
-                is_currently_live = details['is_live'] or any(k in text.lower() for k in ["hiệp 1", "hiệp 2", "đang đá", "đang diễn ra"])
+        is_currently_live = any(k in text.lower() for k in ["hiệp 1", "hiệp 2", "đang đá", "đang diễn ra", "live"])
 
-                # Lấy tên BLV
-                clean_blv = item['blv']
-                if not clean_blv:
-                    blv_match = re.search(r'((?:Gà|BLV|Caster)\s+[A-Za-zÀ-ỹ0-9\s\+]+)', text, re.IGNORECASE)
-                    if blv_match:
-                        raw_blv = blv_match.group(1).strip()
-                        raw_blv = re.split(r'(?:hls|flv|live|trực tiếp|\d{1,2}:\d{2}|hiệp|cúp|league|cược)', raw_blv, flags=re.IGNORECASE)[0].strip()
-                        clean_blv = raw_blv
-                
-                clean_blv = re.sub(r'^(BLV|Caster|Gà)\s*[:\-]?\s*', '', clean_blv, flags=re.IGNORECASE).strip()
-                clean_blv = re.sub(r'\s*(Cược|F888|SV368).*$', '', clean_blv, flags=re.IGNORECASE).strip()
+        # Bóc tách tên BLV
+        clean_blv = ""
+        blv_match = re.search(r'((?:Gà|BLV|Caster)\s+[A-Za-zÀ-ỹ0-9\s\+]+)', text, re.IGNORECASE)
+        if blv_match:
+            raw_blv = blv_match.group(1).strip()
+            raw_blv = re.split(r'(?:hls|flv|live|trực tiếp|\d{1,2}:\d{2}|hiệp|cúp|league|cược)', raw_blv, flags=re.IGNORECASE)[0].strip()
+            clean_blv = raw_blv
+        
+        clean_blv = re.sub(r'^(BLV|Caster|Gà)\s*[:\-]?\s*', '', clean_blv, flags=re.IGNORECASE).strip()
+        clean_blv = re.sub(r'\s*(Cược|F888|SV368).*$', '', clean_blv, flags=re.IGNORECASE).strip()
 
-                # Tên 2 đội bóng
-                teams_str = ""
-                if item['team1'] and item['team2']:
-                    teams_str = f"{item['team1']} vs {item['team2']}"
-                if not teams_str:
-                    teams_str = parse_teams_from_url(url) or "Trận đấu Trực Tiếp"
+        # Bóc tách tên 2 đội bóng
+        teams_str = parse_teams_from_url(url)
+        if not teams_str:
+            match_vs = re.search(r'([A-Za-zÀ-ỹ0-9\s\.]{2,25})\s+vs\s+([A-Za-zÀ-ỹ0-9\s\.]{2,25})', text, re.I)
+            if match_vs:
+                teams_str = f"{match_vs.group(1).strip()} vs {match_vs.group(2).strip()}"
 
-                # Icon môn thể thao
-                sport_icon = SPORT_ICONS.get(item['sport'], "⚽")
+        if not teams_str:
+            teams_str = "Trận đấu Trực Tiếp"
 
-                # Cờ / Logo Đội 1
-                logo = get_team_logo_url(teams_str, item['team1Logo'])
-                blv_suffix = f" ({clean_blv.title()})" if clean_blv else ""
+        sport_icon = SPORT_ICONS.get(item['sport'], "⚽")
+        logo = get_team_logo_url(teams_str, item['team1Logo'])
+        blv_suffix = f" ({clean_blv.title()})" if clean_blv else ""
+        status_dot = "🟢 " if is_currently_live else ""
 
-                status_dot = "🟢 " if is_currently_live else ""
+        # Tiêu đề chuẩn hình mẫu (1845.jpg): 🟢 16:00 26/09 ⚽ Pakistan vs Thái Lan (Chim Nhỏ) [hls]
+        full_title = f"{status_dot}{extracted_time} {match_date} {sport_icon} {teams_str}{blv_suffix} [hls]"
 
-                # Định dạng tên chuẩn 100% theo mẫu hình 1 (1845.jpg):
-                # 16:00 26/09 ⚽ Pakistan vs Thái Lan (Chim Nhỏ) [hls]
-                full_title = f"{status_dot}{extracted_time} {match_date} {sport_icon} {teams_str}{blv_suffix} [hls]"
+        parsed_items.append({
+            "title": full_title,
+            "logo": logo,
+            "url": url,
+            "is_live": is_currently_live
+        })
 
-                dt_obj = parse_datetime_obj(match_date, extracted_time, vn_tz)
-
-                parsed_items.append({
-                    "title": full_title,
-                    "logo": logo,
-                    "url": url,
-                    "m3u8_url": details['m3u8_url'],
-                    "is_live": is_currently_live,
-                    "dt": dt_obj
-                })
-
-            parsed_items.sort(key=lambda x: (not x['is_live'], x['dt'].date(), x['dt'].time()))
-
-            seen_urls = set()
-            for p_item in parsed_items:
-                if p_item['url'] in seen_urls: continue
-                seen_urls.add(p_item['url'])
-                final_matches.append(p_item)
-
-        except Exception as e:
-            print(f"[!] Lỗi: {e}")
-        finally:
-            browser.close()
-
-    # Xuất file M3U chuẩn TiviMate / OTT Navigator
+    # Ghi file Playlist M3U cho TiviMate
     with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
         f.write('#EXTM3U\n\n')
-
-        for item in final_matches:
-            logo_attr = f'tvg-logo="{item["logo"]}"'
-            
-            f.write(f'#EXTINF:-1 {logo_attr} group-title="{GROUP_NAME}" , {item["title"]}\n')
+        for item in parsed_items:
+            f.write(f'#EXTINF:-1 tvg-logo="{item["logo"]}" group-title="{GROUP_NAME}" , {item["title"]}\n')
             f.write(f'#EXTVLCOPT:http-user-agent={USER_AGENT}\n')
-            f.write(f'#EXTVLCOPT:http-referrer={BASE_URL}/\n')
-            
-            if item.get('m3u8_url'):
-                f.write(f'{item["m3u8_url"]}|Referer={BASE_URL}/&User-Agent={USER_AGENT}\n\n')
-            else:
-                f.write(f'{item["url"]}\n\n')
+            f.write(f'#EXTVLCOPT:http-referrer={working_domain}/\n')
+            f.write(f'{item["url"]}\n\n')
 
-    print(f"[*] Đã hoàn tất! Xuất {len(final_matches)} trận vào {OUTPUT_FILE}")
+    print(f"[*] Xuất thành công {len(parsed_items)} trận vào {OUTPUT_FILE}")
 
 if __name__ == "__main__":
     run_scraper()
