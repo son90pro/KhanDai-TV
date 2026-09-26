@@ -23,7 +23,6 @@ KNOWN_BLVS = [
     "Trâu Chiến", "Đèn Mờ", "Khám Phá", "Tên Sát", "Batman", "Spider", "Suka"
 ]
 
-# Danh sách Cờ Quốc Gia chuẩn FlagCDN (Đã bổ sung đầy đủ)
 COUNTRY_FLAGS = {
     "vietnam": "vn", "việt nam": "vn", "philippines": "ph", "thailand": "th", "thái lan": "th",
     "slovenia": "si", "scotland": "gb-sct", "finland": "fi", "phần lan": "fi",
@@ -34,7 +33,6 @@ COUNTRY_FLAGS = {
     "france": "fr", "pháp": "fr", "germany": "de", "đức": "de", "italy": "it", "ý": "it", "usa": "us", "mỹ": "us"
 }
 
-# Logo riêng cho các CLB Thể Thao / Bóng Chuyền
 SPECIAL_LOGOS = {
     "imoco": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c5/Imoco_Volley_logo.png/220px-Imoco_Volley_logo.png",
     "novara": "https://flagcdn.com/w320/it.png"
@@ -51,32 +49,22 @@ def parse_blv(text: str) -> str:
 
 def get_match_logo(teams_str: str) -> str:
     t_low = teams_str.lower()
-    
-    # 1. Kiểm tra logo CLB đặc biệt
     for club, logo_url in SPECIAL_LOGOS.items():
         if club in t_low:
             return logo_url
-
-    # 2. Ưu tiên lấy cờ của ĐỘI 1 (Chủ nhà / Đội bên trái chữ VS)
     parts = re.split(r'\s+vs\s+', t_low, flags=re.IGNORECASE)
     t1 = parts[0] if len(parts) > 0 else t_low
-
     for country, code in COUNTRY_FLAGS.items():
         if country in t1:
             return f"https://flagcdn.com/w320/{code}.png"
-
-    # 3. Nếu Đội 1 không khớp thì mới quét toàn bộ chuỗi
     for country, code in COUNTRY_FLAGS.items():
         if country in t_low:
             return f"https://flagcdn.com/w320/{code}.png"
-
     return DEFAULT_FLAG
 
 def parse_card_details(url: str, card_text: str, default_date: str):
     blv = parse_blv(url) or parse_blv(card_text)
     teams = ""
-
-    # Trích xuất tên 2 đội từ URL
     match_slug = re.search(r'/(?:truc-tiep|match|live|room|xem|phong|link|stream)/([^/?#]+)', url)
     if match_slug:
         slug = match_slug.group(1).lower()
@@ -84,30 +72,25 @@ def parse_card_details(url: str, card_text: str, default_date: str):
             parts = slug.split('-vs-')
             left = re.sub(r'^(?:blv|caster|ga)[-_]+', '', parts[0])
             right = re.sub(r'-(?:luc|ngay|time|\d{2}h\d{2}|\d{3,12}|blv.*).*$', '', parts[1])
-
             for b in KNOWN_BLVS:
                 b_slug = b.lower().replace(' ', '-')
                 left = left.replace(f"-{b_slug}", "").replace(f"{b_slug}-", "")
                 right = right.replace(f"-{b_slug}", "").replace(f"{b_slug}-", "")
-
             t1 = " ".join([w.capitalize() for w in left.split('-') if w and not w.isdigit()])
             t2 = " ".join([w.capitalize() for w in right.split('-') if w and not w.isdigit()])
-
             t1 = t1.replace("Viet Nam", "Việt Nam").replace("Phan Lan", "Phần Lan")
             t2 = t2.replace("Viet Nam", "Việt Nam").replace("Phan Lan", "Phần Lan")
-
             if t1 and t2:
                 teams = f"{t1} vs {t2}"
-
+                
     if not teams:
         vs_m = re.search(r'([A-ZÀ-Ỹa-zà-ỹ0-9\s]+)\s+vs\s+([A-ZÀ-Ỹa-zà-ỹ0-9\s]+)', card_text, re.I)
         if vs_m:
             teams = f"{vs_m.group(1).strip().title()} vs {vs_m.group(2).strip().title()}"
-
+            
     if not teams:
         teams = "Trận đấu Trực Tiếp"
 
-    # Trích xuất Thời gian & Ngày thi đấu
     match_time = "19:30"
     time_m = re.search(r'\b(2[0-3]|[0-1]?\d)[h:](\d{2})\b', card_text + " " + url)
     if time_m:
@@ -118,7 +101,6 @@ def parse_card_details(url: str, card_text: str, default_date: str):
     if date_m:
         match_date = f"{date_m.group(1).zfill(2)}/{date_m.group(2).zfill(2)}"
 
-    # Biểu tượng môn thể thao
     sport_icon = "⚽"
     if any(k in (teams + card_text).lower() for k in ["imoco", "novara", "bóng chuyền", "volleyball", "volley"]):
         sport_icon = "🏐"
@@ -126,68 +108,68 @@ def parse_card_details(url: str, card_text: str, default_date: str):
         sport_icon = "🏀"
 
     status_dot = "🟢" if any(k in card_text.lower() for k in ["đang diễn ra", "live", "h1", "h2"]) else "🟡"
-
     return match_time, match_date, sport_icon, teams, blv, status_dot
 
 def fetch_m3u8_stream(context, match_url: str, base_domain: str) -> str:
-    """Bắt luồng video .m3u8 thực sự thông qua bắt gói tin Network & API"""
     m3u8_url = ""
     page = context.new_page()
 
     def handle_request(request):
         nonlocal m3u8_url
-        u = request.url
-        if ".m3u8" in u and "blob:" not in u and not m3u8_url:
-            m3u8_url = u
+        if ".m3u8" in request.url and "blob:" not in request.url and not m3u8_url:
+            m3u8_url = request.url
 
     def handle_response(response):
         nonlocal m3u8_url
         if m3u8_url: return
-        u = response.url
-        if ".m3u8" in u and "blob:" not in u:
-            m3u8_url = u
-        elif "json" in response.headers.get("content-type", "") or "api" in u:
-            try:
+        try:
+            if "json" in response.headers.get("content-type", "") or "api" in response.url:
                 text = response.text()
                 m = re.findall(r'(https?://[^\s"\'<>]+?\.m3u8[^\s"\'<>]*)', text)
                 if m and "blob:" not in m[0]:
                     m3u8_url = m[0]
-            except:
-                pass
+        except:
+            pass
 
     page.on("request", handle_request)
     page.on("response", handle_response)
 
     try:
-        page.goto(match_url, timeout=15000, wait_until="domcontentloaded")
-        time.sleep(2)
+        page.goto(match_url, timeout=20000, wait_until="domcontentloaded")
+        page.wait_for_timeout(3500) # Đợi JS load hoàn chỉnh player
 
-        # Click kích hoạt trình phát video
-        page.evaluate('''() => {
-            const el = document.querySelector('video') || document.querySelector('.player') || document.querySelector('iframe');
-            if (el) el.click();
-        }''')
-        time.sleep(2)
-
+        # 1. Tìm regex trực tiếp trong HTML
         if not m3u8_url:
             content = page.content()
             m = re.findall(r'(https?://[^\s"\'<>]+?\.m3u8[^\s"\'<>]*)', content)
-            for u in m:
-                if "blob:" not in u:
-                    m3u8_url = u
-                    break
+            if m:
+                m3u8_url = m[0]
 
+        # 2. Giải mã Base64 (Web VN hay giấu link m3u8 bằng cách này)
+        if not m3u8_url:
+            content = page.content()
+            b64_matches = re.findall(r'(aHR0c[A-Za-z0-9+/=]+)', content)
+            for b in b64_matches:
+                try:
+                    dec = base64.b64decode(b).decode('utf-8')
+                    if '.m3u8' in dec:
+                        m3u8_url = dec
+                        break
+                except:
+                    pass
+
+        # 3. Quét trong các Iframe nhúng
         if not m3u8_url:
             for frame in page.frames:
                 try:
                     c = frame.content()
                     m = re.findall(r'(https?://[^\s"\'<>]+?\.m3u8[^\s"\'<>]*)', c)
-                    for u in m:
-                        if "blob:" not in u:
-                            m3u8_url = u
-                            break
+                    if m:
+                        m3u8_url = m[0]
+                        break
                 except:
                     pass
+
     except Exception as e:
         print(f"[!] Lỗi khi truy cập {match_url}: {e}")
     finally:
@@ -204,7 +186,13 @@ def run_scraper():
     with sync_playwright() as p:
         browser = p.chromium.launch(
             headless=True,
-            args=["--disable-blink-features=AutomationControlled", "--no-sandbox", "--disable-setuid-sandbox"]
+            args=[
+                "--disable-blink-features=AutomationControlled", 
+                "--no-sandbox", 
+                "--disable-setuid-sandbox",
+                "--autoplay-policy=no-user-gesture-required", # BẮT BUỘC: Ép player phát không cần click để nhả link m3u8
+                "--disable-web-security"
+            ]
         )
         context = browser.new_context(
             user_agent=USER_AGENT,
@@ -263,7 +251,6 @@ def run_scraper():
 
             match_time, match_date, sport_icon, teams, blv, status_dot = parse_card_details(url, card_text, today_str)
 
-            # Khóa chống trùng lặp: Bao gồm cả Tên trận + BLV (để giữ lại các trận có 2 BLV khác nhau)
             dedup_key = f"{teams}_{blv}_{url}"
             if dedup_key in seen_keys:
                 continue
@@ -275,14 +262,16 @@ def run_scraper():
 
             m3u8_stream_url = fetch_m3u8_stream(context, url, working_domain)
 
-            # CHỈ LẤY CÁC TRẬN CÓ LUỒNG .M3U8 HỢP LỆ ĐỂ ĐẢM BẢO IPTV PHÁT ĐƯỢC 100%
-            if m3u8_stream_url and ".m3u8" in m3u8_stream_url:
-                parsed_items.append({
-                    "title": full_title,
-                    "logo": logo,
-                    "play_url": m3u8_stream_url
-                })
-                print(f"[✓] Đã thêm thành công: {full_title}")
+            # SỬA LỖI TRỐNG DANH SÁCH: Luôn thêm trận đấu vào m3u dù có tìm được link m3u8 ngay lúc đó hay không.
+            # Dùng link web làm dự phòng để danh sách lúc nào cũng hiện đầy đủ.
+            final_play_url = m3u8_stream_url if (m3u8_stream_url and ".m3u8" in m3u8_stream_url) else url
+
+            parsed_items.append({
+                "title": full_title,
+                "logo": logo,
+                "play_url": final_play_url
+            })
+            print(f"[✓] Đã thêm: {full_title}")
 
         browser.close()
 
@@ -295,7 +284,12 @@ def run_scraper():
         else:
             for item in parsed_items:
                 play_url = item["play_url"]
-                stream_entry = f"{play_url}|User-Agent={USER_AGENT}&Referer={working_domain}/"
+                
+                # Chỉ gắn pipe header nếu lấy được m3u8 thành công
+                if ".m3u8" in play_url:
+                    stream_entry = f"{play_url}|User-Agent={USER_AGENT}&Referer={working_domain}/"
+                else:
+                    stream_entry = play_url
 
                 f.write(f'#EXTINF:-1 tvg-logo="{item["logo"]}" group-title="{GROUP_NAME}", {item["title"]}\n')
                 f.write(f'#EXTVLCOPT:http-user-agent={USER_AGENT}\n')
