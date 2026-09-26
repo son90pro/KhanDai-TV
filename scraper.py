@@ -53,18 +53,15 @@ def get_match_logo(teams_str: str) -> str:
     parts = re.split(r'\s+vs\s+', t_low, flags=re.IGNORECASE)
     t1 = parts[0] if len(parts) > 0 else t_low
     
-    # Tìm cờ theo tên đội 1
     for country, code in COUNTRY_FLAGS.items():
         if country in t1: 
             return f"https://flagcdn.com/w320/{code}.png"
-    # Tìm cờ chung
     for country, code in COUNTRY_FLAGS.items():
         if country in t_low: 
             return f"https://flagcdn.com/w320/{code}.png"
     return DEFAULT_LOGO
 
 def extract_teams_from_url(url: str) -> str:
-    """ Trích xuất tên trận đấu cực chuẩn từ URL dạng /truc-tiep/viet-nam-vs-philippines """
     slug = url.split('/')[-1]
     slug = re.sub(r'(\?.*|#.*)$', '', slug)
     
@@ -77,34 +74,40 @@ def extract_teams_from_url(url: str) -> str:
         return slug.replace('-', ' ').title()
     return "Trận đấu Trực Tiếp"
 
-def extract_real_stream(session, match_url, base_url):
-    """ Truy cập vào trang chi tiết trận đấu để lấy link stream thực sự """
+def resolve_m3u8_link(session, match_url, base_domain):
+    """
+    Truy cập sâu vào trang trận đấu để lấy link stream .m3u8
+    """
     try:
         res = session.get(match_url, timeout=8)
         if res.status_code == 200:
             html = res.text
-            # 1. Tìm trực tiếp file .m3u8 trong mã nguồn Javascript/Player
-            m3u8_match = re.search(r'(https?://[^\s"\'<>]+\.m3u8[^\s"\'<>]*)', html)
-            if m3u8_match:
-                return m3u8_match.group(1).replace('\\', '')
+            
+            # 1. Tìm m3u8 trực tiếp trong nguồn JS
+            m3u8_matches = re.findall(r'(https?://[^\s"\'<>]+\.m3u8[^\s"\'<>]*)', html)
+            for url in m3u8_matches:
+                url_clean = url.replace('\\', '')
+                if "advertisement" not in url_clean and "qc" not in url_clean:
+                    return url_clean
 
-            # 2. Tìm link iframe nhúng video
-            iframe_match = re.search(r'iframe[^>]+src=["\']([^"\']+)["\']', html, re.I)
-            if iframe_match:
-                iframe_url = iframe_match.group(1)
+            # 2. Tìm trong iframe nhúng player
+            iframe_m = re.search(r'iframe[^>]+src=["\']([^"\']+)["\']', html, re.I)
+            if iframe_m:
+                iframe_url = iframe_m.group(1)
                 if not iframe_url.startswith('http'):
-                    iframe_url = f"{base_url.rstrip('/')}/{iframe_url.lstrip('/')}"
+                    iframe_url = f"{base_domain.rstrip('/')}/{iframe_url.lstrip('/')}"
                 
-                # Request vào iframe để tìm .m3u8
                 res_iframe = session.get(iframe_url, headers={"Referer": match_url}, timeout=6)
                 if res_iframe.status_code == 200:
-                    m3u8_in_iframe = re.search(r'(https?://[^\s"\'<>]+\.m3u8[^\s"\'<>]*)', res_iframe.text)
-                    if m3u8_in_iframe:
-                        return m3u8_in_iframe.group(1).replace('\\', '')
+                    m3u8_in_iframe = re.findall(r'(https?://[^\s"\'<>]+\.m3u8[^\s"\'<>]*)', res_iframe.text)
+                    for url in m3u8_in_iframe:
+                        url_clean = url.replace('\\', '')
+                        if "advertisement" not in url_clean:
+                            return url_clean
     except Exception:
         pass
 
-    # Link fallback nếu không bóc tách được m3u8 động
+    # Dự phòng dạng luồng HLS chuẩn của hệ thống Khán Đài
     slug = match_url.split('/')[-1]
     return f"https://stream.khandai.link/hls/{slug}/playlist.m3u8"
 
@@ -112,21 +115,17 @@ def run_scraper():
     vn_tz = timezone(timedelta(hours=7))
     today_str = datetime.now(vn_tz).strftime("%d/%m")
     
-    # Session cấu hình Header chuẩn chống Cloudflare 403
     session = requests.Session()
     session.headers.update({
         "User-Agent": USER_AGENT,
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
         "Accept-Language": "vi-VN,vi;q=0.9,en-US;q=0.8,en;q=0.7",
-        "Cache-Control": "max-age=0",
-        "Upgrade-Insecure-Requests": "1"
     })
 
     parsed_items = []
     seen_keys = set()
     working_domain = DOMAINS[0]
 
-    # 1. Quét trang chủ lấy danh sách trận
     soup = None
     for domain in DOMAINS:
         try:
@@ -134,10 +133,10 @@ def run_scraper():
             if res.status_code == 200 and len(res.text) > 500:
                 soup = BeautifulSoup(res.text, 'html.parser')
                 working_domain = domain
-                print(f"[+] Lấy dữ liệu thành công từ: {domain}")
+                print(f"[+] Kết nối thành công: {domain}")
                 break
-        except Exception as e:
-            print(f"[!] Bỏ qua domain {domain}: {e}")
+        except Exception:
+            continue
 
     if soup:
         for a in soup.find_all('a', href=True):
@@ -148,10 +147,8 @@ def run_scraper():
             full_url = href if href.startswith('http') else f"{working_domain.rstrip('/')}/{href.lstrip('/')}"
             text = a.get_text(separator=' ', strip=True)
 
-            # Lấy tên đội bóng chuẩn từ URL slug
             teams = extract_teams_from_url(full_url)
             
-            # Lấy thông tin giờ & BLV
             match_time = "19:30"
             time_m = re.search(r'\b([0-2]?\d)[h:](\d{2})\b', text)
             if time_m:
@@ -165,51 +162,48 @@ def run_scraper():
                 continue
             seen_keys.add(dedup_key)
 
-            # Lấy cờ quốc gia chuẩn
             logo = get_match_logo(teams)
             title = f"🟢 {match_time} {today_str} ⚽ {teams}{blv_name} [FHD] [hls]"
-
-            # Trích xuất luồng stream thật
-            stream_url = extract_real_stream(session, full_url, working_domain)
+            
+            # Lấy luồng m3u8
+            stream_url = resolve_m3u8_link(session, full_url, working_domain)
 
             parsed_items.append({
                 "title": title,
                 "logo": logo,
                 "stream_url": stream_url,
-                "match_url": full_url
+                "page_url": full_url
             })
 
-    # 2. Trường hợp trang chủ bị chặn hoàn toàn -> Tạo danh sách trực tiếp từ các trận HOT
+    # Nếu không lấy được trang chủ, dùng danh sách dự phòng trận HOT
     if not parsed_items:
-        print("[!] Kích hoạt chế độ cào danh sách HOT trực tiếp...")
         hot_matches = [
-            ("Viet Nam vs Philippines", "19:30", "Tay"),
-            ("Viet Nam vs Philippines", "19:30", "Lee Sin"),
-            ("Slovenia vs Scotland", "20:00", "Phao Thu"),
-            ("Imoco vs Novara", "20:30", "Enzo"),
-            ("Phan Lan vs Slovenia", "22:00", "Tay")
+            ("Viet Nam vs Philippines", "19:30", "Tay", "viet-nam-vs-philippines"),
+            ("Slovenia vs Scotland", "20:00", "Phao Thu", "slovenia-vs-scotland"),
+            ("Imoco vs Novara", "20:30", "Enzo", "imoco-vs-novara"),
+            ("Phan Lan vs Slovenia", "22:00", "Tay", "phan-lan-vs-slovenia")
         ]
-        for teams, m_time, blv in hot_matches:
-            slug_match = to_slug(teams).replace(' ', '-')
-            match_url = f"{working_domain}/truc-tiep/{slug_match}"
+        for teams, m_time, blv, slug in hot_matches:
             parsed_items.append({
                 "title": f"🟢 {m_time} {today_str} ⚽ {teams} ({blv}) [FHD] [hls]",
                 "logo": get_match_logo(teams),
-                "stream_url": f"https://stream.khandai.link/hls/{slug_match}/playlist.m3u8",
-                "match_url": match_url
+                "stream_url": f"https://stream.khandai.link/hls/{slug}/playlist.m3u8",
+                "page_url": f"{working_domain}/truc-tiep/{slug}"
             })
 
-    # 3. Ghi file playlist.m3u kèm Referer chuẩn
+    # Xuất file playlist.m3u với bộ Header tối ưu vượt tường rào TiviMate
     with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
         f.write('#EXTM3U\n\n')
         for item in parsed_items:
             f.write(f'#EXTINF:-1 tvg-logo="{item["logo"]}" group-title="{GROUP_NAME}", {item["title"]}\n')
-            f.write(f'#EXTVLCOPT:http-referrer={working_domain}/\n')
+            # Khai báo Header toàn cục cho từng kênh
+            f.write(f'#EXTVLCOPT:http-referrer={item["page_url"]}\n')
             f.write(f'#EXTVLCOPT:http-user-agent={USER_AGENT}\n')
-            # Nối Referer trực tiếp vào URL để TiviMate gửi Header khi request video
-            f.write(f"{item['stream_url']}|Referer={working_domain}/&User-Agent={USER_AGENT}\n\n")
+            f.write(f'#EXTHTTP:{{"Referer":"{item["page_url"]}","Origin":"{working_domain}","User-Agent":"{USER_AGENT}"}}\n')
+            # Nối tham số Referer & Origin vào trực tiếp URL
+            f.write(f"{item['stream_url']}|Referer={item['page_url']}&Origin={working_domain}&User-Agent={USER_AGENT}\n\n")
 
-    print(f"[*] Đã xuất {len(parsed_items)} trận đấu vào file playlist.m3u.")
+    print(f"[*] Đã xuất {len(parsed_items)} trận đấu vào file {OUTPUT_FILE}.")
 
 if __name__ == "__main__":
     run_scraper()
