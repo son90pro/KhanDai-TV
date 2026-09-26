@@ -1,2 +1,27 @@
 #EXTM3U
 
+#EXTINF:-1 tvg-logo="https://flagcdn.com/w320/un.png" group-title="Khán Đài TV", 🟢 19:30 26/09 ⚽ Trực Tiếp Khán Đài 1 (KHANDAI1) [FHD] [hls]
+#EXTVLCOPT:http-referrer=https://khandai1.link/
+#EXTVLCOPT:http-user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36
+https://stream.khandai.link/hls/khandai1hd/playlist.m3u8|Referer=https://khandai1.link/&User-Agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36
+
+#EXTINF:-1 tvg-logo="https://flagcdn.com/w320/un.png" group-title="Khán Đài TV", 🟢 19:30 26/09 ⚽ Trực Tiếp Khán Đài 2 (TAY) [FHD] [hls]
+#EXTVLCOPT:http-referrer=https://khandai1.link/
+#EXTVLCOPT:http-user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36
+https://stream.khandai.link/hls/tayhd/playlist.m3u8|Referer=https://khandai1.link/&User-Agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36
+
+#EXTINF:-1 tvg-logo="https://flagcdn.com/w320/un.png" group-title="Khán Đài TV", 🟢 19:30 26/09 ⚽ Trực Tiếp Khán Đài 3 (LEESIN) [FHD] [hls]
+#EXTVLCOPT:http-referrer=https://khandai1.link/
+#EXTVLCOPT:http-user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36
+https://stream.khandai.link/hls/leesinhd/playlist.m3u8|Referer=https://khandai1.link/&User-Agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36
+
+#EXTINF:-1 tvg-logo="https://flagcdn.com/w320/un.png" group-title="Khán Đài TV", 🟢 19:30 26/09 ⚽ Trực Tiếp Khán Đài 4 (ENZO) [FHD] [hls]
+#EXTVLCOPT:http-referrer=https://khandai1.link/
+#EXTVLCOPT:http-user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36
+https://stream.khandai.link/hls/enzohd/playlist.m3u8|Referer=https://khandai1.link/&User-Agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36
+
+#EXTINF:-1 tvg-logo="https://flagcdn.com/w320/un.png" group-title="Khán Đài TV", 🟢 19:30 26/09 ⚽ Trực Tiếp Khán Đài 5 (PHAOTHU) [FHD] [hls]
+#EXTVLCOPT:http-referrer=https://khandai1.link/
+#EXTVLCOPT:http-user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36
+https://stream.khandai.link/hls/phaothuhd/playlist.m3u8|Referer=https://khandai1.link/&User-Agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36
+
