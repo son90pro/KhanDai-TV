@@ -1,0 +1,42 @@
+#EXTM3U
+
+#EXTINF:-1 tvg-logo="https://flagcdn.com/w320/vn.png" group-title="Khán Đài TV" , 19:30 26/09 ⚽ Việt Nam vs Philippines (Tày) [hls] 
+#EXTVLCOPT:http-referrer=https://khandai1.link/
+https://khandai1.link/truc-tiep/viet-nam-vs-philippines
+
+#EXTINF:-1 tvg-logo="https://flagcdn.com/w320/vn.png" group-title="Khán Đài TV" , 19:30 26/09 ⚽ Việt Nam vs Philippines (Lee Sin) [hls] 
+#EXTVLCOPT:http-referrer=https://khandai1.link/
+https://khandai1.link/truc-tiep/viet-nam-vs-philippines-26-09-2026-160544
+
+#EXTINF:-1 tvg-logo="https://flagcdn.com/w320/si.png" group-title="Khán Đài TV" , 20:00 26/09 ⚽ Slovenia vs Scotland (Pháo Thủ) [hls] 
+#EXTVLCOPT:http-referrer=https://khandai1.link/
+https://khandai1.link/truc-tiep/slovenia-vs-scotland-26-09-2026-790830
+
+#EXTINF:-1 tvg-logo="https://flagcdn.com/w320/it.png" group-title="Khán Đài TV" , 20:30 26/09 🏐 Imoco vs Novara (Enzo) [hls] 
+#EXTVLCOPT:http-referrer=https://khandai1.link/
+https://khandai1.link/truc-tiep/imoco-vs-novara
+
+#EXTINF:-1 tvg-logo="https://flagcdn.com/w320/si.png" group-title="Khán Đài TV" , 22:00 26/09 🏐 Phan Lan vs Slovenia (Tày) [hls] 
+#EXTVLCOPT:http-referrer=https://khandai1.link/
+https://khandai1.link/truc-tiep/phan-lan-vs-slovenia
+
+#EXTINF:-1 tvg-logo="https://flagcdn.com/w320/iq.png" group-title="Khán Đài TV" , 22:55 26/09 ⚽ Kuwait vs Iraq (Kền Kền) [hls] 
+#EXTVLCOPT:http-referrer=https://khandai1.link/
+https://khandai1.link/truc-tiep/kuwait-vs-iraq-26-09-2026-857453
+
+#EXTINF:-1 tvg-logo="https://flagcdn.com/w320/lu.png" group-title="Khán Đài TV" , 23:00 26/09 ⚽ Bulgaria vs Luxembourg (Tiểu Mây) [hls] 
+#EXTVLCOPT:http-referrer=https://khandai1.link/
+https://khandai1.link/truc-tiep/bulgaria-vs-luxembourg-26-09-2026-790922
+
+#EXTINF:-1 tvg-logo="https://flagcdn.com/w320/is.png" group-title="Khán Đài TV" , 23:00 26/09 ⚽ Iceland vs Estonia (Pháo Thủ) [hls] 
+#EXTVLCOPT:http-referrer=https://khandai1.link/
+https://khandai1.link/truc-tiep/iceland-vs-estonia-26-09-2026-790924
+
+#EXTINF:-1 tvg-logo="https://flagcdn.com/w320/fi.png" group-title="Khán Đài TV" , 23:00 26/09 ⚽ San Marino vs Finland (Enzo) [hls] 
+#EXTVLCOPT:http-referrer=https://khandai1.link/
+https://khandai1.link/truc-tiep/san-marino-vs-finland-26-09-2026-790925
+
+#EXTINF:-1 tvg-logo="https://flagcdn.com/w320/un.png" group-title="Khán Đài TV" , 19:30 26/09 ⚽ Trang chủ vs Tỷ số [hls] 
+#EXTVLCOPT:http-referrer=https://khandai1.link/
+https://khandai1.link/lich-truc-tiep
+
