@@ -4,7 +4,7 @@ import unicodedata
 from datetime import datetime, timezone, timedelta
 from playwright.sync_api import sync_playwright
 
-# Danh sách tên miền dự phòng Khán Đài TV
+# Danh sách tên miền dự phòng của Khán Đài TV
 DOMAINS = [
     "https://khandai1.link",
     "https://khandai.link",
@@ -28,7 +28,7 @@ SPORT_ICONS = {
     "cầu lông": "🏸"
 }
 
-# Danh sách BLV Khán Đài TV chuẩn (Gồm các tên ngắn dễ bị nhầm làm Tên Đội)
+# Danh sách BLV Khán Đài TV chuẩn
 KNOWN_BLVS = [
     "Chim Nhỏ", "Tây", "Tay", "Lee Sin", "Pháo Thủ", "Kền Kền", "Tiểu Mây", "Enzo",
     "Giga", "Sư Tử", "Voi Con", "Gà Rừng", "Hắc Cáo", "Lão Đại", "Táo Quân",
@@ -36,7 +36,7 @@ KNOWN_BLVS = [
     "Trâu Chiến", "Đèn Mờ", "Khám Phá", "Tên Sát", "Batman", "Spider"
 ]
 
-# Từ điển Cờ Quốc Gia & Vùng lãnh thổ chuẩn HD
+# Từ điển Cờ Quốc Gia & Vùng lãnh thổ
 COUNTRY_FLAGS = {
     "vietnam": "vn", "việt nam": "vn", "viet nam": "vn", "philippines": "ph", "thailand": "th", "thái lan": "th", "thai lan": "th",
     "pakistan": "pk", "indonesia": "id", "malaysia": "my", "singapore": "sg", "myanmar": "mm",
@@ -68,7 +68,6 @@ JUNK_KEYWORDS = [
 ]
 
 def is_blv_name(text: str) -> bool:
-    """Kiểm tra một chuỗi xem có phải tên BLV không"""
     if not text: return False
     t_low = text.strip().lower()
     for b in KNOWN_BLVS:
@@ -86,7 +85,6 @@ def clean_team_name(name: str) -> str:
     return name.strip()
 
 def extract_from_url_slug(url: str):
-    """Bóc tách Tên 2 Đội & BLV từ URL slug khi DOM không đủ thông tin"""
     match_slug = re.search(r'/(?:truc-tiep|match|live|room|xem|phong|link|stream|xem-bong-da|truc-tiep-bong-da)/([^/?#]+)', url)
     if not match_slug:
         return "", ""
@@ -100,7 +98,6 @@ def extract_from_url_slug(url: str):
 
     blv_found = ""
 
-    # Trích xuất BLV từ vế trái
     left_clean = re.sub(r'^(?:blv|caster|ga)[-_]+', '', left)
     for b in KNOWN_BLVS:
         b_slug = b.lower().replace(' ', '-').replace('đ', 'd')
@@ -109,7 +106,6 @@ def extract_from_url_slug(url: str):
             left_clean = left_clean[len(b_slug)+1:]
             break
 
-    # Trích xuất BLV từ vế phải
     right_clean = right
     for b in KNOWN_BLVS:
         b_slug = b.lower().replace(' ', '-').replace('đ', 'd')
@@ -154,23 +150,19 @@ def parse_card_lines(lines, url: str):
 
         line_low = line_clean.lower()
 
-        # 1. Bỏ qua Menu rác (BXH, Nhà cái, Tin tức)
         if any(jk in line_low for jk in ["bxh", "lịch thi đấu", "top nhà cái", "bảng xếp hạng", "tin tức"]):
             continue
 
-        # 2. Bóc tách Giờ thi đấu
         if not extracted_time:
             time_m = re.search(r'\b(2[0-3]|[0-1]?\d)[:h](\d{2})\b', line_clean)
             if time_m:
                 extracted_time = f"{time_m.group(1).zfill(2)}:{time_m.group(2)}"
 
-        # 3. Bóc tách Ngày thi đấu
         if not extracted_date:
             date_m = re.search(r'\b(\d{1,2})[-/.](\d{1,2})\b', line_clean)
             if date_m:
                 extracted_date = f"{date_m.group(1).zfill(2)}/{date_m.group(2).zfill(2)}"
 
-        # 4. Nhận diện BLV
         if not blv_found:
             for b in KNOWN_BLVS:
                 if b.lower() == line_low or f"blv {b.lower()}" in line_low or f"caster {b.lower()}" in line_low:
@@ -180,13 +172,11 @@ def parse_card_lines(lines, url: str):
         if is_blv_name(line_clean):
             continue
 
-        # 5. Môn thể thao
         for sp, icon in SPORT_ICONS.items():
             if sp in line_low:
                 sport_found = icon
                 break
 
-        # Bỏ qua các dòng chứa thông số giờ/ngày hoặc rác
         if any(junk == line_low or junk in line_low for junk in JUNK_KEYWORDS):
             continue
         if re.search(r'\d{1,2}[:h/]\d{2}', line_clean):
@@ -202,7 +192,6 @@ def parse_card_lines(lines, url: str):
         if t1 and t2 and t1.lower() != t2.lower() and not is_blv_name(t1) and not is_blv_name(t2):
             teams_title = f"{t1} vs {t2}"
 
-    # Giải mã từ URL Slug nếu DOM bị dính tên BLV
     teams_from_slug, blv_from_slug = extract_from_url_slug(url)
 
     if teams_from_slug:
@@ -222,6 +211,55 @@ def get_team_logo(teams_str: str) -> str:
         if re.search(pattern, t_lower):
             return f"https://flagcdn.com/w320/{code}.png"
     return DEFAULT_FLAG
+
+def fetch_m3u8_stream(context, match_url: str) -> str:
+    """Tự động bắt link luồng m3u8 trực tiếp từ trang chi tiết trận đấu"""
+    m3u8_url = ""
+    page = context.new_page()
+
+    # Chặn tải hình ảnh, font, css rác để nạp trang siêu tốc (1-2 giây)
+    page.route("**/*", lambda route: route.abort() if route.request.resource_type in ["image", "font", "stylesheet", "other"] else route.continue_())
+
+    def handle_request(request):
+        nonlocal m3u8_url
+        u = request.url
+        if ".m3u8" in u and "blob:" not in u and not m3u8_url:
+            m3u8_url = u
+
+    page.on("request", handle_request)
+
+    try:
+        page.goto(match_url, timeout=8000, wait_until="domcontentloaded")
+        time.sleep(1.0)
+
+        for sel in ['.play-btn', '.btn-play', '#player', 'button']:
+            try:
+                page.click(sel, timeout=300)
+            except Exception:
+                pass
+
+        for _ in range(5):
+            if m3u8_url:
+                break
+            time.sleep(0.3)
+
+        if not m3u8_url:
+            for frame in page.frames:
+                try:
+                    content = frame.content()
+                    urls = re.findall(r'https?://[^\s"\'<>]+\.m3u8[^\s"\'<>]*', content)
+                    for u in urls:
+                        if "blob:" not in u:
+                            m3u8_url = u
+                            break
+                except Exception:
+                    pass
+    except Exception:
+        pass
+    finally:
+        page.close()
+
+    return m3u8_url
 
 def run_scraper():
     vn_tz = timezone(timedelta(hours=7))
@@ -248,7 +286,6 @@ def run_scraper():
                 page.goto(base_url, timeout=35000, wait_until="domcontentloaded")
                 time.sleep(3)
 
-                # Cuộn trang nhiều lần để nạp 100% danh sách trận đấu
                 for _ in range(8):
                     page.evaluate("window.scrollBy(0, 1000)")
                     time.sleep(0.4)
@@ -262,7 +299,6 @@ def run_scraper():
                         const href = link.getAttribute('href') || '';
                         if (!href || href === '/' || href.startsWith('#')) return;
                         
-                        // Lọc bỏ triệt để các link Menu rác
                         if (/(bxh|top-nha-cai|lich-thi-dau|tin-tuc|huong-dan)/i.test(href)) return;
                         if (!/(truc-tiep|match|live|room|xem|phong|stream|bong-da)/i.test(href)) return;
 
@@ -307,43 +343,48 @@ def run_scraper():
             except Exception as e:
                 print(f"[!] Thất bại tại {base_url}: {e}")
 
+        parsed_items = []
+        seen_urls = set()
+
+        print(f"[*] Đang bóc tách link video .m3u8 trực tiếp cho {len(raw_matches)} trận...")
+        for item in raw_matches:
+            url = item['url']
+            if url in seen_urls: continue
+
+            lines = item['lines']
+            raw_text = item['rawText']
+
+            extracted_time, extracted_date, sport_icon, teams_title, blv_name = parse_card_lines(lines, url)
+
+            if "BXH" in teams_title or "TOP NHÀ CÁI" in teams_title:
+                continue
+
+            seen_urls.add(url)
+
+            if not extracted_time:
+                extracted_time = "19:30"
+            if not extracted_date:
+                extracted_date = today_str
+
+            is_currently_live = any(k in raw_text.lower() for k in ["đang diễn ra", "đang đá", "hiệp 1", "hiệp 2", "live"])
+            status_dot = "🟢 " if is_currently_live else ""
+            blv_suffix = f" ({blv_name})" if blv_name else ""
+
+            full_title = f"{status_dot}{extracted_time} {extracted_date} {sport_icon} {teams_title}{blv_suffix} [hls]"
+            logo = get_team_logo(teams_title)
+
+            # Bóc tách link .m3u8 phát trực tiếp
+            m3u8_stream_url = fetch_m3u8_stream(context, url)
+            final_play_url = m3u8_stream_url if m3u8_stream_url else url
+
+            parsed_items.append({
+                "title": full_title,
+                "logo": logo,
+                "play_url": final_play_url,
+                "web_url": url
+            })
+
         browser.close()
-
-    parsed_items = []
-    seen_urls = set()
-
-    for item in raw_matches:
-        url = item['url']
-        if url in seen_urls: continue
-
-        lines = item['lines']
-        raw_text = item['rawText']
-
-        extracted_time, extracted_date, sport_icon, teams_title, blv_name = parse_card_lines(lines, url)
-
-        # Loại bỏ nếu thẻ là link rác menu
-        if "BXH" in teams_title or "TOP NHÀ CÁI" in teams_title:
-            continue
-
-        seen_urls.add(url)
-
-        if not extracted_time:
-            extracted_time = "19:30"
-        if not extracted_date:
-            extracted_date = today_str
-
-        is_currently_live = any(k in raw_text.lower() for k in ["đang diễn ra", "đang đá", "hiệp 1", "hiệp 2", "live"])
-        status_dot = "🟢 " if is_currently_live else ""
-        blv_suffix = f" ({blv_name})" if blv_name else ""
-
-        full_title = f"{status_dot}{extracted_time} {extracted_date} {sport_icon} {teams_title}{blv_suffix} [hls]"
-        logo = get_team_logo(teams_title)
-
-        parsed_items.append({
-            "title": full_title,
-            "logo": logo,
-            "url": url
-        })
 
     # Ghi file M3U Playlist cho TiviMate
     with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
@@ -352,7 +393,11 @@ def run_scraper():
             f.write(f'#EXTINF:-1 tvg-logo="{item["logo"]}" group-title="{GROUP_NAME}" , {item["title"]}\n')
             f.write(f'#EXTVLCOPT:http-user-agent={USER_AGENT}\n')
             f.write(f'#EXTVLCOPT:http-referrer={working_domain}/\n')
-            f.write(f'{item["url"]}\n\n')
+            
+            if ".m3u8" in item["play_url"]:
+                f.write(f'{item["play_url"]}|Referer={working_domain}/&User-Agent={USER_AGENT}\n\n')
+            else:
+                f.write(f'{item["play_url"]}\n\n')
 
     print(f"[*] Xuất thành công {len(parsed_items)} trận vào {OUTPUT_FILE}")
 
