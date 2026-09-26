@@ -1,6 +1,7 @@
 import time
 import re
 import base64
+import json
 import requests
 from datetime import datetime, timezone, timedelta
 from playwright.sync_api import sync_playwright
@@ -111,67 +112,93 @@ def parse_card_details(url: str, card_text: str, default_date: str):
     return match_time, match_date, sport_icon, teams, blv, status_dot
 
 def fetch_m3u8_stream(context, match_url: str, base_domain: str) -> str:
+    """Trích xuất chính xác luồng .m3u8 trực tiếp từ trình phát"""
     m3u8_url = ""
     page = context.new_page()
 
-    def handle_request(request):
+    def handle_route(route):
         nonlocal m3u8_url
-        if ".m3u8" in request.url and "blob:" not in request.url and not m3u8_url:
-            m3u8_url = request.url
+        req_url = route.request.url
+        if ".m3u8" in req_url and "blob:" not in req_url and not m3u8_url:
+            m3u8_url = req_url
+        route.continue_()
 
-    def handle_response(response):
-        nonlocal m3u8_url
-        if m3u8_url: return
-        try:
-            if "json" in response.headers.get("content-type", "") or "api" in response.url:
-                text = response.text()
-                m = re.findall(r'(https?://[^\s"\'<>]+?\.m3u8[^\s"\'<>]*)', text)
-                if m and "blob:" not in m[0]:
-                    m3u8_url = m[0]
-        except:
-            pass
-
-    page.on("request", handle_request)
-    page.on("response", handle_response)
+    page.route("**/*", handle_route)
 
     try:
-        page.goto(match_url, timeout=20000, wait_until="domcontentloaded")
-        page.wait_for_timeout(3500) # Đợi JS load hoàn chỉnh player
+        page.goto(match_url, timeout=25000, wait_until="domcontentloaded")
+        page.wait_for_timeout(3500)
 
-        # 1. Tìm regex trực tiếp trong HTML
+        # 1. Kích hoạt phát video trên trang web
+        page.evaluate('''() => {
+            const v = document.querySelector('video');
+            if (v) { v.muted = true; v.play().catch(()=>{}); }
+            const btns = Array.from(document.querySelectorAll('button, div, a'));
+            btns.forEach(b => {
+                if (b.innerText && (b.innerText.includes('Play') || b.innerText.includes('Xem'))) {
+                    try { b.click(); } catch(e){}
+                }
+            });
+        }''')
+        page.wait_for_timeout(2000)
+
+        # 2. Truy vấn trực tiếp biến cấu hình Player trong JavaScript (JWPlayer, Clappr, Hls.js)
         if not m3u8_url:
-            content = page.content()
-            m = re.findall(r'(https?://[^\s"\'<>]+?\.m3u8[^\s"\'<>]*)', content)
-            if m:
-                m3u8_url = m[0]
+            m3u8_from_js = page.evaluate('''() => {
+                let found = '';
+                try {
+                    if (window.jwplayer && typeof window.jwplayer === 'function') {
+                        const playlist = window.jwplayer().getPlaylist();
+                        if (playlist && playlist[0] && playlist[0].file) return playlist[0].file;
+                    }
+                } catch(e){}
+                try {
+                    if (window.player && window.player.src) return window.player.src;
+                } catch(e){}
+                
+                // Lấy từ thẻ video src
+                const videos = Array.from(document.querySelectorAll('video'));
+                for (let v of videos) {
+                    if (v.src && v.src.includes('.m3u8')) return v.src;
+                    const sources = Array.from(v.querySelectorAll('source'));
+                    for (let s of sources) {
+                        if (s.src && s.src.includes('.m3u8')) return s.src;
+                    }
+                }
+                return '';
+            }''')
+            if m3u8_from_js and "blob:" not in m3u8_from_js:
+                m3u8_url = m3u8_from_js
 
-        # 2. Giải mã Base64 (Web VN hay giấu link m3u8 bằng cách này)
-        if not m3u8_url:
-            content = page.content()
-            b64_matches = re.findall(r'(aHR0c[A-Za-z0-9+/=]+)', content)
-            for b in b64_matches:
-                try:
-                    dec = base64.b64decode(b).decode('utf-8')
-                    if '.m3u8' in dec:
-                        m3u8_url = dec
-                        break
-                except:
-                    pass
-
-        # 3. Quét trong các Iframe nhúng
+        # 3. Quét kiểm tra tất cả các khung nhúng (Iframes)
         if not m3u8_url:
             for frame in page.frames:
                 try:
-                    c = frame.content()
-                    m = re.findall(r'(https?://[^\s"\'<>]+?\.m3u8[^\s"\'<>]*)', c)
-                    if m:
-                        m3u8_url = m[0]
+                    frame_url = frame.evaluate('''() => {
+                        const v = document.querySelector('video');
+                        if (v && v.src && v.src.includes('.m3u8')) return v.src;
+                        const s = document.querySelector('source');
+                        if (s && s.src && s.src.includes('.m3u8')) return s.src;
+                        return '';
+                    }''')
+                    if frame_url and "blob:" not in frame_url:
+                        m3u8_url = frame_url
                         break
                 except:
                     pass
 
+        # 4. Quét regex nén HTML & Base64
+        if not m3u8_url:
+            html = page.content()
+            m = re.findall(r'(https?://[^\s"\'<>]+?\.m3u8[^\s"\'<>]*)', html)
+            if m:
+                for match_item in m:
+                    if "blob:" not in match_item:
+                        m3u8_url = match_item
+                        break
+
     except Exception as e:
-        print(f"[!] Lỗi khi truy cập {match_url}: {e}")
+        print(f"[!] Lỗi truy cập link {match_url}: {e}")
     finally:
         page.close()
 
@@ -187,10 +214,10 @@ def run_scraper():
         browser = p.chromium.launch(
             headless=True,
             args=[
-                "--disable-blink-features=AutomationControlled", 
-                "--no-sandbox", 
+                "--disable-blink-features=AutomationControlled",
+                "--no-sandbox",
                 "--disable-setuid-sandbox",
-                "--autoplay-policy=no-user-gesture-required", # BẮT BUỘC: Ép player phát không cần click để nhả link m3u8
+                "--autoplay-policy=no-user-gesture-required",
                 "--disable-web-security"
             ]
         )
@@ -202,7 +229,7 @@ def run_scraper():
         )
 
         for base_url in DOMAINS:
-            print(f"[*] Đang quét danh sách từ: {base_url}")
+            print(f"[*] Đang cào danh sách trận đấu từ: {base_url}")
             try:
                 page = context.new_page()
                 page.goto(base_url, timeout=35000, wait_until="domcontentloaded")
@@ -236,15 +263,15 @@ def run_scraper():
                 if extracted and len(extracted) > 0:
                     raw_matches = extracted
                     working_domain = base_url
-                    print(f"[+] Tìm thấy {len(raw_matches)} link trận đấu từ {base_url}")
+                    print(f"[+] Đã tìm thấy {len(raw_matches)} trận đấu từ {base_url}")
                     break
             except Exception as e:
-                print(f"[!] Thất bại tại {base_url}: {e}")
+                print(f"[!] Lỗi kết nối {base_url}: {e}")
 
         parsed_items = []
         seen_keys = set()
 
-        print(f"[*] Đang bóc tách thông tin chi tiết và luồng live video...")
+        print(f"[*] Đang bóc tách đường dẫn trực tiếp (.m3u8)...")
         for item in raw_matches:
             url = item['url']
             card_text = item['text']
@@ -262,41 +289,38 @@ def run_scraper():
 
             m3u8_stream_url = fetch_m3u8_stream(context, url, working_domain)
 
-            # SỬA LỖI TRỐNG DANH SÁCH: Luôn thêm trận đấu vào m3u dù có tìm được link m3u8 ngay lúc đó hay không.
-            # Dùng link web làm dự phòng để danh sách lúc nào cũng hiện đầy đủ.
-            final_play_url = m3u8_stream_url if (m3u8_stream_url and ".m3u8" in m3u8_stream_url) else url
-
-            parsed_items.append({
-                "title": full_title,
-                "logo": logo,
-                "play_url": final_play_url
-            })
-            print(f"[✓] Đã thêm: {full_title}")
+            # CHỈ THÊM VÀO PLAYLIST NẾU LẤY ĐƯỢC LINK LUỒNG .M3U8 CHUẨN
+            if m3u8_stream_url and ".m3u8" in m3u8_stream_url:
+                parsed_items.append({
+                    "title": full_title,
+                    "logo": logo,
+                    "play_url": m3u8_stream_url
+                })
+                print(f"[✓] Thành công lấy stream: {full_title}")
+            else:
+                print(f"[X] Bỏ qua (Chưa có luồng live m3u8): {teams}{blv_suffix}")
 
         browser.close()
 
-    # Ghi file M3U xuất ra chuẩn định dạng IPTV
+    # Ghi file M3U chuẩn định dạng quốc tế IPTV
     with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
         f.write('#EXTM3U\n\n')
         if not parsed_items:
-            f.write(f'#EXTINF:-1 tvg-logo="{DEFAULT_FLAG}" group-title="Hệ Thống", [!] Đang cập nhật luồng trực tiếp mới\n')
+            f.write(f'#EXTINF:-1 tvg-logo="{DEFAULT_FLAG}" group-title="Hệ Thống", [!] Đang cập nhật luồng phát mới\n')
             f.write(f'{working_domain}\n\n')
         else:
             for item in parsed_items:
                 play_url = item["play_url"]
-                
-                # Chỉ gắn pipe header nếu lấy được m3u8 thành công
-                if ".m3u8" in play_url:
-                    stream_entry = f"{play_url}|User-Agent={USER_AGENT}&Referer={working_domain}/"
-                else:
-                    stream_entry = play_url
+                headers_json = json.dumps({"User-Agent": USER_AGENT, "Referer": f"{working_domain}/"})
 
                 f.write(f'#EXTINF:-1 tvg-logo="{item["logo"]}" group-title="{GROUP_NAME}", {item["title"]}\n')
                 f.write(f'#EXTVLCOPT:http-user-agent={USER_AGENT}\n')
                 f.write(f'#EXTVLCOPT:http-referrer={working_domain}/\n')
-                f.write(f'{stream_entry}\n\n')
+                f.write(f'#EXTHTTP:{headers_json}\n')
+                # Giữ link URL hoàn toàn sạch sẽ, không gắn thêm ký tự pipe |
+                f.write(f'{play_url}\n\n')
 
-    print(f"[*] Đã xuất xong {len(parsed_items)} trận đấu chuẩn mẫu vào file {OUTPUT_FILE}")
+    print(f"[*] Hoàn tất! Đã xuất {len(parsed_items)} kênh phát trực tiếp vào file {OUTPUT_FILE}")
 
 if __name__ == "__main__":
     run_scraper()
