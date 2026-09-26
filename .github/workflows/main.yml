@@ -2,18 +2,17 @@ name: Auto Update Playlist
 
 on:
   schedule:
-    - cron: '*/30 * * * *'  # Chạy tự động 30 phút một lần
-  workflow_dispatch:        # Nút bấm chạy thủ công bằng tay
+    - cron: '0 */2 * * *'  # Tự động chạy cập nhật mỗi 2 tiếng
+  workflow_dispatch:      # Cho phép bấm "Run workflow" thủ công
 
 jobs:
   build:
     runs-on: ubuntu-latest
-
     permissions:
-      contents: write
+      contents: write     # Cấp quyền ghi để lưu và push file playlist.m3u
 
     steps:
-      - name: Checkout code
+      - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Set up Python
@@ -24,20 +23,16 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          pip install playwright
+          playwright install --with-deps chromium
 
-      # Bước quan trọng nhất để sửa lỗi Exit Code 2 khi dùng Playwright
-      - name: Install Playwright Browsers
-        run: |
-          python -m playwright install --with-deps chromium
-
-      - name: Run Scraper Script
+      - name: Run Scraper
         run: python scraper.py
 
-      - name: Commit and Push M3U File
+      - name: Commit and push changes
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git add playlist.m3u
-          git diff --staged --quiet || (git commit -m "Auto update playlist.m3u [skip ci]" && git push)
+          git diff --quiet && git diff --staged --quiet || (git commit -m "Auto update playlist" && git push)
           
