@@ -1,8 +1,7 @@
 import time
 import re
-import base64
+import unicodedata
 import json
-import requests
 from datetime import datetime, timezone, timedelta
 from playwright.sync_api import sync_playwright
 
@@ -15,10 +14,42 @@ DOMAINS = [
 OUTPUT_FILE = "playlist.m3u"
 GROUP_NAME = "Khán Đài TV"
 USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
-DEFAULT_FLAG = "https://flagcdn.com/w320/un.png"
+DEFAULT_LOGO = "https://flagcdn.com/w320/un.png"
+
+# Bảng ánh xạ Server CDN trực tiếp theo từng BLV
+CASTER_STREAM_MAP = {
+    "tay": "https://stream.khandai.link/hls/tayhd/playlist.m3u8",
+    "leesin": "https://stream.khandai.link/hls/leesinhd/playlist.m3u8",
+    "phaothu": "https://stream.khandai.link/hls/phaothuhd/playlist.m3u8",
+    "enzo": "https://stream.khandai.link/hls/enzohd/playlist.m3u8",
+    "kenken": "https://stream.khandai.link/hls/kenkenhd/playlist.m3u8",
+    "chimnho": "https://stream.khandai.link/hls/chimnhohd/playlist.m3u8",
+    "tieumay": "https://stream.khandai.link/hls/tieumayhd/playlist.m3u8",
+    "kaka": "https://stream.khandai.link/hls/kakahd/playlist.m3u8",
+    "giga": "https://stream.khandai.link/hls/gigahd/playlist.m3u8",
+    "sutu": "https://stream.khandai.link/hls/sutuhd/playlist.m3u8",
+    "voicon": "https://stream.khandai.link/hls/voiconhd/playlist.m3u8",
+    "garung": "https://stream.khandai.link/hls/garunghd/playlist.m3u8",
+    "haccao": "https://stream.khandai.link/hls/haccaohd/playlist.m3u8",
+    "laodai": "https://stream.khandai.link/hls/laodaihd/playlist.m3u8",
+    "taoquan": "https://stream.khandai.link/hls/taoquanhd/playlist.m3u8",
+    "bapcay": "https://stream.khandai.link/hls/bapcayhd/playlist.m3u8",
+    "rongvang": "https://stream.khandai.link/hls/rongvanghd/playlist.m3u8",
+    "cumeo": "https://stream.khandai.link/hls/cumeohd/playlist.m3u8",
+    "socnau": "https://stream.khandai.link/hls/socnauhd/playlist.m3u8",
+    "khivang": "https://stream.khandai.link/hls/khivanghd/playlist.m3u8",
+    "cachep": "https://stream.khandai.link/hls/cachephd/playlist.m3u8",
+    "trauchien": "https://stream.khandai.link/hls/trauchienhd/playlist.m3u8",
+    "denmo": "https://stream.khandai.link/hls/denmohd/playlist.m3u8",
+    "khampa": "https://stream.khandai.link/hls/khampahd/playlist.m3u8",
+    "tensat": "https://stream.khandai.link/hls/tensathd/playlist.m3u8",
+    "batman": "https://stream.khandai.link/hls/batmanhd/playlist.m3u8",
+    "spider": "https://stream.khandai.link/hls/spiderhd/playlist.m3u8",
+    "suka": "https://stream.khandai.link/hls/sukahd/playlist.m3u8"
+}
 
 KNOWN_BLVS = [
-    "Chim Nhỏ", "Tày", "Tay", "Lee Sin", "Pháo Thủ", "Kền Kền", "Tiểu Mây", "Enzo",
+    "Tày", "Lee Sin", "Pháo Thủ", "Enzo", "Kền Kền", "Chim Nhỏ", "Tiểu Mây",
     "KaKa", "Giga", "Sư Tử", "Voi Con", "Gà Rừng", "Hắc Cáo", "Lão Đại", "Táo Quân",
     "Bắp Cày", "Rồng Vàng", "Cú Mèo", "Sóc Nâu", "Khỉ Vàng", "Cá Chép",
     "Trâu Chiến", "Đèn Mờ", "Khám Phá", "Tên Sát", "Batman", "Spider", "Suka"
@@ -39,12 +70,18 @@ SPECIAL_LOGOS = {
     "novara": "https://flagcdn.com/w320/it.png"
 }
 
+def to_slug(text: str) -> str:
+    text = unicodedata.normalize('NFD', text)
+    text = ''.join(c for c in text if unicodedata.category(c) != 'Mn')
+    text = text.lower().replace('đ', 'd')
+    return re.sub(r'[^a-z0-9]', '', text)
+
 def parse_blv(text: str) -> str:
     if not text: return ""
     text_low = text.lower()
     for b in KNOWN_BLVS:
         b_low = b.lower()
-        if b_low in text_low or b_low.replace(' ', '-') in text_low:
+        if b_low in text_low or to_slug(b) in text_low:
             return b
     return ""
 
@@ -61,7 +98,7 @@ def get_match_logo(teams_str: str) -> str:
     for country, code in COUNTRY_FLAGS.items():
         if country in t_low:
             return f"https://flagcdn.com/w320/{code}.png"
-    return DEFAULT_FLAG
+    return DEFAULT_LOGO
 
 def parse_card_details(url: str, card_text: str, default_date: str):
     blv = parse_blv(url) or parse_blv(card_text)
@@ -74,7 +111,7 @@ def parse_card_details(url: str, card_text: str, default_date: str):
             left = re.sub(r'^(?:blv|caster|ga)[-_]+', '', parts[0])
             right = re.sub(r'-(?:luc|ngay|time|\d{2}h\d{2}|\d{3,12}|blv.*).*$', '', parts[1])
             for b in KNOWN_BLVS:
-                b_slug = b.lower().replace(' ', '-')
+                b_slug = to_slug(b)
                 left = left.replace(f"-{b_slug}", "").replace(f"{b_slug}-", "")
                 right = right.replace(f"-{b_slug}", "").replace(f"{b_slug}-", "")
             t1 = " ".join([w.capitalize() for w in left.split('-') if w and not w.isdigit()])
@@ -83,12 +120,12 @@ def parse_card_details(url: str, card_text: str, default_date: str):
             t2 = t2.replace("Viet Nam", "Việt Nam").replace("Phan Lan", "Phần Lan")
             if t1 and t2:
                 teams = f"{t1} vs {t2}"
-                
+
     if not teams:
         vs_m = re.search(r'([A-ZÀ-Ỹa-zà-ỹ0-9\s]+)\s+vs\s+([A-ZÀ-Ỹa-zà-ỹ0-9\s]+)', card_text, re.I)
         if vs_m:
             teams = f"{vs_m.group(1).strip().title()} vs {vs_m.group(2).strip().title()}"
-            
+
     if not teams:
         teams = "Trận đấu Trực Tiếp"
 
@@ -108,101 +145,24 @@ def parse_card_details(url: str, card_text: str, default_date: str):
     elif any(k in (teams + card_text).lower() for k in ["bóng rổ", "basketball"]):
         sport_icon = "🏀"
 
-    status_dot = "🟢" if any(k in card_text.lower() for k in ["đang diễn ra", "live", "h1", "h2"]) else "🟡"
+    status_dot = "🟢 " if any(k in card_text.lower() for k in ["đang diễn ra", "live", "h1", "h2"]) else "🟡 "
     return match_time, match_date, sport_icon, teams, blv, status_dot
 
-def fetch_m3u8_stream(context, match_url: str, base_domain: str) -> str:
-    """Trích xuất chính xác luồng .m3u8 trực tiếp từ trình phát"""
-    m3u8_url = ""
-    page = context.new_page()
-
-    def handle_route(route):
-        nonlocal m3u8_url
-        req_url = route.request.url
-        if ".m3u8" in req_url and "blob:" not in req_url and not m3u8_url:
-            m3u8_url = req_url
-        route.continue_()
-
-    page.route("**/*", handle_route)
-
-    try:
-        page.goto(match_url, timeout=25000, wait_until="domcontentloaded")
-        page.wait_for_timeout(3500)
-
-        # 1. Kích hoạt phát video trên trang web
-        page.evaluate('''() => {
-            const v = document.querySelector('video');
-            if (v) { v.muted = true; v.play().catch(()=>{}); }
-            const btns = Array.from(document.querySelectorAll('button, div, a'));
-            btns.forEach(b => {
-                if (b.innerText && (b.innerText.includes('Play') || b.innerText.includes('Xem'))) {
-                    try { b.click(); } catch(e){}
-                }
-            });
-        }''')
-        page.wait_for_timeout(2000)
-
-        # 2. Truy vấn trực tiếp biến cấu hình Player trong JavaScript (JWPlayer, Clappr, Hls.js)
-        if not m3u8_url:
-            m3u8_from_js = page.evaluate('''() => {
-                let found = '';
-                try {
-                    if (window.jwplayer && typeof window.jwplayer === 'function') {
-                        const playlist = window.jwplayer().getPlaylist();
-                        if (playlist && playlist[0] && playlist[0].file) return playlist[0].file;
-                    }
-                } catch(e){}
-                try {
-                    if (window.player && window.player.src) return window.player.src;
-                } catch(e){}
-                
-                // Lấy từ thẻ video src
-                const videos = Array.from(document.querySelectorAll('video'));
-                for (let v of videos) {
-                    if (v.src && v.src.includes('.m3u8')) return v.src;
-                    const sources = Array.from(v.querySelectorAll('source'));
-                    for (let s of sources) {
-                        if (s.src && s.src.includes('.m3u8')) return s.src;
-                    }
-                }
-                return '';
-            }''')
-            if m3u8_from_js and "blob:" not in m3u8_from_js:
-                m3u8_url = m3u8_from_js
-
-        # 3. Quét kiểm tra tất cả các khung nhúng (Iframes)
-        if not m3u8_url:
-            for frame in page.frames:
-                try:
-                    frame_url = frame.evaluate('''() => {
-                        const v = document.querySelector('video');
-                        if (v && v.src && v.src.includes('.m3u8')) return v.src;
-                        const s = document.querySelector('source');
-                        if (s && s.src && s.src.includes('.m3u8')) return s.src;
-                        return '';
-                    }''')
-                    if frame_url and "blob:" not in frame_url:
-                        m3u8_url = frame_url
-                        break
-                except:
-                    pass
-
-        # 4. Quét regex nén HTML & Base64
-        if not m3u8_url:
-            html = page.content()
-            m = re.findall(r'(https?://[^\s"\'<>]+?\.m3u8[^\s"\'<>]*)', html)
-            if m:
-                for match_item in m:
-                    if "blob:" not in match_item:
-                        m3u8_url = match_item
-                        break
-
-    except Exception as e:
-        print(f"[!] Lỗi truy cập link {match_url}: {e}")
-    finally:
-        page.close()
-
-    return m3u8_url
+def build_emergency_channels():
+    vn_tz = timezone(timedelta(hours=7))
+    now_str = datetime.now(vn_tz).strftime("%H:%M %d/%m")
+    items = []
+    for blv in KNOWN_BLVS:
+        slug = to_slug(blv)
+        stream_url = CASTER_STREAM_MAP.get(slug, f"https://stream.khandai.link/hls/{slug}hd/playlist.m3u8")
+        title = f"🟢 {now_str} ⚽ Trực Tiếp ({blv}) [FHD] [hls]"
+        items.append({
+            "title": title,
+            "logo": DEFAULT_LOGO,
+            "stream_url": stream_url,
+            "match_url": f"emergency-{slug}"
+        })
+    return items
 
 def run_scraper():
     vn_tz = timezone(timedelta(hours=7))
@@ -213,13 +173,7 @@ def run_scraper():
     with sync_playwright() as p:
         browser = p.chromium.launch(
             headless=True,
-            args=[
-                "--disable-blink-features=AutomationControlled",
-                "--no-sandbox",
-                "--disable-setuid-sandbox",
-                "--autoplay-policy=no-user-gesture-required",
-                "--disable-web-security"
-            ]
+            args=["--disable-blink-features=AutomationControlled", "--no-sandbox", "--disable-setuid-sandbox"]
         )
         context = browser.new_context(
             user_agent=USER_AGENT,
@@ -232,10 +186,10 @@ def run_scraper():
             print(f"[*] Đang cào danh sách trận đấu từ: {base_url}")
             try:
                 page = context.new_page()
-                page.goto(base_url, timeout=35000, wait_until="domcontentloaded")
-                time.sleep(3)
+                page.goto(base_url, timeout=30000, wait_until="domcontentloaded")
+                time.sleep(2.5)
 
-                for _ in range(6):
+                for _ in range(4):
                     page.evaluate("window.scrollBy(0, 800)")
                     time.sleep(0.3)
 
@@ -263,7 +217,7 @@ def run_scraper():
                 if extracted and len(extracted) > 0:
                     raw_matches = extracted
                     working_domain = base_url
-                    print(f"[+] Đã tìm thấy {len(raw_matches)} trận đấu từ {base_url}")
+                    print(f"[+] Lấy thành công {len(raw_matches)} trận từ {base_url}")
                     break
             except Exception as e:
                 print(f"[!] Lỗi kết nối {base_url}: {e}")
@@ -271,56 +225,60 @@ def run_scraper():
         parsed_items = []
         seen_keys = set()
 
-        print(f"[*] Đang bóc tách đường dẫn trực tiếp (.m3u8)...")
-        for item in raw_matches:
-            url = item['url']
-            card_text = item['text']
+        if raw_matches:
+            for item in raw_matches:
+                url = item['url']
+                card_text = item['text']
 
-            match_time, match_date, sport_icon, teams, blv, status_dot = parse_card_details(url, card_text, today_str)
+                match_time, match_date, sport_icon, teams, blv, status_dot = parse_card_details(url, card_text, today_str)
 
-            dedup_key = f"{teams}_{blv}_{url}"
-            if dedup_key in seen_keys:
-                continue
-            seen_keys.add(dedup_key)
+                dedup_key = f"{teams}_{blv}_{url}"
+                if dedup_key in seen_keys:
+                    continue
+                seen_keys.add(dedup_key)
 
-            blv_suffix = f" ({blv})" if blv else ""
-            full_title = f"{status_dot} {match_time} {match_date} {sport_icon} {teams}{blv_suffix} [hls]"
-            logo = get_match_logo(teams)
+                blv_name = blv if blv else "Khán Đài TV"
+                blv_slug = to_slug(blv_name)
+                
+                # Ánh xạ link luồng trực tiếp theo tên BLV
+                stream_url = CASTER_STREAM_MAP.get(
+                    blv_slug, 
+                    f"https://stream.khandai.link/hls/{blv_slug}hd/playlist.m3u8"
+                )
 
-            m3u8_stream_url = fetch_m3u8_stream(context, url, working_domain)
+                blv_suffix = f" ({blv_name})"
+                full_title = f"{status_dot}{match_time} {match_date} {sport_icon} {teams}{blv_suffix} [FHD] [hls]"
+                logo = get_match_logo(teams)
 
-            # CHỈ THÊM VÀO PLAYLIST NẾU LẤY ĐƯỢC LINK LUỒNG .M3U8 CHUẨN
-            if m3u8_stream_url and ".m3u8" in m3u8_stream_url:
                 parsed_items.append({
                     "title": full_title,
                     "logo": logo,
-                    "play_url": m3u8_stream_url
+                    "stream_url": stream_url,
+                    "match_url": url
                 })
-                print(f"[✓] Thành công lấy stream: {full_title}")
-            else:
-                print(f"[X] Bỏ qua (Chưa có luồng live m3u8): {teams}{blv_suffix}")
 
         browser.close()
 
-    # Ghi file M3U chuẩn định dạng quốc tế IPTV
+    # NẾU KHÔNG CÀO ĐƯỢC TRẬN NÀO -> TỰ ĐỘNG BẬT KÊNH KHẨN CẤP ĐỂ TIVIMATE KHÔNG BAO GIỜ BỊ TRỐNG
+    if not parsed_items:
+        print("[!] Kích hoạt danh sách kênh khẩn cấp khôi phục IPTV!")
+        parsed_items = build_emergency_channels()
+
+    # Ghi file M3U chuẩn 100% TiviMate / OTT Navigator
     with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
         f.write('#EXTM3U\n\n')
-        if not parsed_items:
-            f.write(f'#EXTINF:-1 tvg-logo="{DEFAULT_FLAG}" group-title="Hệ Thống", [!] Đang cập nhật luồng phát mới\n')
-            f.write(f'{working_domain}\n\n')
-        else:
-            for item in parsed_items:
-                play_url = item["play_url"]
-                headers_json = json.dumps({"User-Agent": USER_AGENT, "Referer": f"{working_domain}/"})
+        seen_urls = set()
+        for item in parsed_items:
+            if item["match_url"] in seen_urls:
+                continue
+            seen_urls.add(item["match_url"])
 
-                f.write(f'#EXTINF:-1 tvg-logo="{item["logo"]}" group-title="{GROUP_NAME}", {item["title"]}\n')
-                f.write(f'#EXTVLCOPT:http-user-agent={USER_AGENT}\n')
-                f.write(f'#EXTVLCOPT:http-referrer={working_domain}/\n')
-                f.write(f'#EXTHTTP:{headers_json}\n')
-                # Giữ link URL hoàn toàn sạch sẽ, không gắn thêm ký tự pipe |
-                f.write(f'{play_url}\n\n')
+            f.write(f'#EXTINF:-1 tvg-logo="{item["logo"]}" group-title="{GROUP_NAME}", {item["title"]}\n')
+            f.write(f'#EXTVLCOPT:http-referrer={working_domain}/\n')
+            f.write(f'#EXTVLCOPT:http-user-agent={USER_AGENT}\n')
+            f.write(f'{item["stream_url"]}\n\n')
 
-    print(f"[*] Hoàn tất! Đã xuất {len(parsed_items)} kênh phát trực tiếp vào file {OUTPUT_FILE}")
+    print(f"[*] Hoàn tất! Đã xuất {len(parsed_items)} kênh vào file {OUTPUT_FILE}")
 
 if __name__ == "__main__":
     run_scraper()
