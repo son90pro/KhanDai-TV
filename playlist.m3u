@@ -1,27 +1,27 @@
 #EXTM3U
 
-#EXTINF:-1 tvg-logo="https://flagcdn.com/w320/un.png" group-title="Khán Đài TV", 🟢 19:30 26/09 ⚽ Trực Tiếp Khán Đài 1 (KHANDAI1) [FHD] [hls]
+#EXTINF:-1 tvg-logo="https://flagcdn.com/w320/vn.png" group-title="Khán Đài TV", 🟢 19:30 26/09 ⚽ Viet Nam vs Philippines (Tay) [FHD] [hls]
 #EXTVLCOPT:http-referrer=https://khandai1.link/
 #EXTVLCOPT:http-user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36
-https://stream.khandai.link/hls/khandai1hd/playlist.m3u8|Referer=https://khandai1.link/&User-Agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36
+https://stream.khandai.link/hls/vietnamvsphilippines/playlist.m3u8|Referer=https://khandai1.link/&User-Agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36
 
-#EXTINF:-1 tvg-logo="https://flagcdn.com/w320/un.png" group-title="Khán Đài TV", 🟢 19:30 26/09 ⚽ Trực Tiếp Khán Đài 2 (TAY) [FHD] [hls]
+#EXTINF:-1 tvg-logo="https://flagcdn.com/w320/vn.png" group-title="Khán Đài TV", 🟢 19:30 26/09 ⚽ Viet Nam vs Philippines (Lee Sin) [FHD] [hls]
 #EXTVLCOPT:http-referrer=https://khandai1.link/
 #EXTVLCOPT:http-user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36
-https://stream.khandai.link/hls/tayhd/playlist.m3u8|Referer=https://khandai1.link/&User-Agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36
+https://stream.khandai.link/hls/vietnamvsphilippines/playlist.m3u8|Referer=https://khandai1.link/&User-Agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36
 
-#EXTINF:-1 tvg-logo="https://flagcdn.com/w320/un.png" group-title="Khán Đài TV", 🟢 19:30 26/09 ⚽ Trực Tiếp Khán Đài 3 (LEESIN) [FHD] [hls]
+#EXTINF:-1 tvg-logo="https://flagcdn.com/w320/si.png" group-title="Khán Đài TV", 🟢 20:00 26/09 ⚽ Slovenia vs Scotland (Phao Thu) [FHD] [hls]
 #EXTVLCOPT:http-referrer=https://khandai1.link/
 #EXTVLCOPT:http-user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36
-https://stream.khandai.link/hls/leesinhd/playlist.m3u8|Referer=https://khandai1.link/&User-Agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36
+https://stream.khandai.link/hls/sloveniavsscotland/playlist.m3u8|Referer=https://khandai1.link/&User-Agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36
 
-#EXTINF:-1 tvg-logo="https://flagcdn.com/w320/un.png" group-title="Khán Đài TV", 🟢 19:30 26/09 ⚽ Trực Tiếp Khán Đài 4 (ENZO) [FHD] [hls]
+#EXTINF:-1 tvg-logo="https://flagcdn.com/w320/un.png" group-title="Khán Đài TV", 🟢 20:30 26/09 ⚽ Imoco vs Novara (Enzo) [FHD] [hls]
 #EXTVLCOPT:http-referrer=https://khandai1.link/
 #EXTVLCOPT:http-user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36
-https://stream.khandai.link/hls/enzohd/playlist.m3u8|Referer=https://khandai1.link/&User-Agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36
+https://stream.khandai.link/hls/imocovsnovara/playlist.m3u8|Referer=https://khandai1.link/&User-Agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36
 
-#EXTINF:-1 tvg-logo="https://flagcdn.com/w320/un.png" group-title="Khán Đài TV", 🟢 19:30 26/09 ⚽ Trực Tiếp Khán Đài 5 (PHAOTHU) [FHD] [hls]
+#EXTINF:-1 tvg-logo="https://flagcdn.com/w320/fi.png" group-title="Khán Đài TV", 🟢 22:00 26/09 ⚽ Phan Lan vs Slovenia (Tay) [FHD] [hls]
 #EXTVLCOPT:http-referrer=https://khandai1.link/
 #EXTVLCOPT:http-user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36
-https://stream.khandai.link/hls/phaothuhd/playlist.m3u8|Referer=https://khandai1.link/&User-Agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36
+https://stream.khandai.link/hls/phanlanvsslovenia/playlist.m3u8|Referer=https://khandai1.link/&User-Agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36
 
