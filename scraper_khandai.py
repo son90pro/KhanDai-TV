@@ -6,7 +6,7 @@ import subprocess
 from datetime import datetime, timezone, timedelta
 from urllib.parse import quote, urljoin
 
-# Tự động cài đặt cloudscraper nếu chưa có môi trường
+# Tự động cài đặt cloudscraper nếu chưa có
 try:
     import cloudscraper
 except ImportError:
@@ -21,7 +21,6 @@ WORKER_DOMAIN = "chuoi-chien-iptv.sonnguyen90pro.workers.dev"
 OUTPUT_FILE = "khandai.m3u"
 GROUP_NAME = "Khán Đài TV"
 
-# Danh sách domain mới nhất
 DOMAINS = [
     "https://khandai1.link",
     "https://khandai2.link",
@@ -42,7 +41,6 @@ COUNTRY_FLAGS = {
 }
 
 def create_cf_scraper():
-    """Tạo scraper vượt rào Cloudflare"""
     return cloudscraper.create_scraper(
         browser={
             'browser': 'chrome',
@@ -55,7 +53,6 @@ def fetch_page(target_url: str) -> str:
     print(f"[*] Đang kết nối tới: {target_url}")
     scraper = create_cf_scraper()
 
-    # 1. Thử dùng Cloudscraper giải mã Cloudflare
     try:
         res = scraper.get(target_url, timeout=15)
         print(f"  -> Cloudscraper Status: {res.status_code}")
@@ -64,7 +61,6 @@ def fetch_page(target_url: str) -> str:
     except Exception as e:
         print(f"  -> Cloudscraper lỗi: {e}")
 
-    # 2. Thử qua Proxy Worker
     proxy_url = f"https://{WORKER_DOMAIN}/proxy?url={quote(target_url, safe='')}"
     print(f"[*] Đang kết nối qua Worker Proxy...")
     try:
@@ -190,7 +186,8 @@ def run_scraper():
                 time_str, date_str = parse_time_and_date(text, today_str)
                 is_live = any(k in text.lower() for k in ["trực tiếp", "hiệp", "'", "live"])
                 
-                blv_match = re.search(r'(?:BLV|Caster)\s*([A-Za- me0-9_À-ỹ]+)', text, re.IGNORECASE)
+                # Đã sửa lại chuỗi Regex chuẩn
+                blv_match = re.search(r'(?:BLV|Caster)\s*([A-Za-z0-9_À-ỹ]+)', text, re.IGNORECASE)
                 teams_name = "Trận đấu Trực Tiếp"
                 slug_match = re.search(r'/([^/?#]+-vs-[^/?#]+)', href)
                 if slug_match:
@@ -234,7 +231,6 @@ def run_scraper():
 
     parsed_items.sort(key=lambda x: (x['dt'].date(), not x['is_live'], x['dt'].time()))
 
-    # Lọc trùng tên kênh
     final_matches, title_tracker = [], {}
     for p_item in parsed_items:
         raw_title = p_item['title']
@@ -245,7 +241,6 @@ def run_scraper():
             title_tracker[raw_title] = 1
         final_matches.append(p_item)
 
-    # Đưa kết quả vào file M3U
     print(f"[*] Tiến hành ghi {len(final_matches)} trận vào file {OUTPUT_FILE}...")
     with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
         f.write('#EXTM3U tvg-shift="0"\n\n')
