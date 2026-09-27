@@ -1,100 +1,110 @@
 import requests
-from bs4 import BeautifulSoup
 import re
+from bs4 import BeautifulSoup
 import datetime
 
-# Danh sách trang web mục tiêu
-URLS = [
-    "https://khandai1.link",
-    "https://khandai2.link",
-    "https://khandai3.link"
-]
-
+# Trang chủ cần quét
+BASE_URL = "https://khandai1.link"
 M3U_FILE = "khandai.m3u"
+
 HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8"
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.0.0 Safari/537.36",
+    "Referer": "https://khandai1.link/"
 }
 
-def fetch_html(url):
+def get_match_links():
+    """Vào trang chủ và gom tất cả các link dẫn đến trang trực tiếp"""
     try:
-        response = requests.get(url, headers=HEADERS, timeout=15)
-        response.raise_for_status()
-        return response.text
+        print(f"Đang tải trang chủ: {BASE_URL}")
+        res = requests.get(BASE_URL, headers=HEADERS, timeout=15)
+        soup = BeautifulSoup(res.text, 'html.parser')
+        
+        links = []
+        # Quét tất cả thẻ <a> có chứa đường dẫn
+        for a in soup.find_all('a', href=True):
+            href = a['href']
+            # Lọc lấy các link chứa từ khóa 'truc-tiep'
+            if 'truc-tiep' in href:
+                # Xử lý nếu web dùng link tương đối (vd: /truc-tiep/abc)
+                full_link = href if href.startswith("http") else f"{BASE_URL.rstrip('/')}/{href.lstrip('/')}"
+                if full_link not in links:
+                    links.append(full_link)
+        return links
     except Exception as e:
-        print(f"Lỗi truy cập {url}: {e}")
+        print(f"Lỗi lấy link trang chủ: {e}")
+        return []
+
+def get_match_details(match_url):
+    """Vào từng trận đấu để lấy Logo, Tiêu đề và Link m3u8 ẩn"""
+    try:
+        print(f"Đang bóc tách: {match_url}")
+        res = requests.get(match_url, headers=HEADERS, timeout=15)
+        html = res.text
+        soup = BeautifulSoup(html, 'html.parser')
+
+        # 1. Lấy Tên trận đấu từ thẻ <title> hoặc <h1>
+        title = soup.title.text.strip() if soup.title else "Trận đấu không xác định"
+        title = title.replace("Trực tiếp", "").replace("Khán Đài TV", "").replace("|", "").strip()
+        match_name = f"🟢 {title} [hls]" # Tạo form tên giống danh sách cũ
+        
+        # 2. Lấy Logo trận đấu (Thường nằm ở thẻ meta og:image để share FB)
+        logo_url = ""
+        og_image = soup.find('meta', property='og:image')
+        if og_image:
+            logo_url = og_image.get('content', '')
+
+        # 3. Lưới lọc Regex: Tìm mọi chuỗi giống định dạng link m3u8 trong source code
+        # Định dạng này sẽ tóm gọn các link như phaohoa.live/index.m3u8?expire=...
+        m3u8_link = ""
+        m3u8_match = re.search(r'(https?://[^"\'\s<>]+?\.m3u8[^"\'\s<>]*)', html)
+        
+        if m3u8_match:
+            # Sửa lỗi thoát ký tự slash nếu link bị nén trong Javascript
+            m3u8_link = m3u8_match.group(1).replace('\\/', '/')
+        else:
+             # Nếu không thấy, tìm thử trong iframe dự phòng
+             iframe = soup.find('iframe')
+             if iframe and 'src' in iframe.attrs and 'm3u8' in iframe['src']:
+                 m3u8_link = iframe['src']
+
+        # Chỉ trả về dữ liệu nếu tìm thấy link m3u8
+        if m3u8_link:
+            return {
+                "name": match_name,
+                "logo": logo_url,
+                "stream": m3u8_link,
+                "referrer": match_url
+            }
+        else:
+            print(" -> Không tìm thấy link m3u8 (Khả năng trận đấu chưa phát hoặc mã hóa JS)")
+            return None
+            
+    except Exception as e:
+        print(f"Lỗi tại {match_url}: {e}")
         return None
-
-def parse_matches(html, base_url):
-    matches = []
-    soup = BeautifulSoup(html, 'html.parser')
-    
-    # CHÚ Ý: Cần thay đổi 'class-ten-tran-dau' bằng class thực tế khi F12 (Inspect) trang web
-    match_elements = soup.find_all('div', class_='class-bao-ngoai-moi-tran-dau') 
-
-    for el in match_elements:
-        try:
-            # 1. Trích xuất thông tin hiển thị
-            time_str = el.find('span', class_='class-thoi-gian').text.strip() # VD: 11:00 27/09
-            sport_icon = el.find('span', class_='class-icon-the-thao').text.strip() # 🏐 hoặc ⚽
-            teams = el.find('span', class_='class-ten-doi').text.strip() # VD: Hàn Quốc vs Philippines
-            commentator = el.find('span', class_='class-blv').text.strip() # VD: Lee Sin
-            
-            match_name = f"{time_str} {sport_icon} {teams} ({commentator}) [hls]"
-            
-            # Thêm chấm xanh nếu đang Live
-            if el.find('span', class_='class-live-badge'):
-                match_name = f"🟢 {match_name}"
-
-            # 2. Trích xuất link Logo
-            logo_tag = el.find('img', class_='class-logo-img')
-            logo_url = logo_tag['src'] if logo_tag else ""
-            if logo_url and not logo_url.startswith("http"):
-                logo_url = f"{base_url.rstrip('/')}/{logo_url.lstrip('/')}"
-
-            # 3. Trích xuất link m3u8 
-            # Tìm link m3u8 trong data-attribute hoặc dùng regex tìm trong toàn bộ HTML của phần tử
-            stream_url = ""
-            iframe = el.find('iframe')
-            if iframe and 'src' in iframe.attrs:
-                # Nếu trang dùng iframe, có thể cần request thêm vào src của iframe để lấy link m3u8
-                stream_url = iframe['src']
-            else:
-                m3u8_search = re.search(r'(https?://[^\s"\'<>]+m3u8[^\s"\'<>]*)', str(el))
-                if m3u8_search:
-                    stream_url = m3u8_search.group(1)
-
-            if stream_url:
-                matches.append({
-                    "name": match_name,
-                    "logo": logo_url,
-                    "stream": stream_url,
-                    "referrer": base_url
-                })
-        except AttributeError:
-            continue
-            
-    return matches
 
 def generate_playlist():
     m3u_content = ["#EXTM3U\n\n"]
     
-    for url in URLS:
-        print(f"Đang xử lý: {url}")
-        html = fetch_html(url)
-        if html:
-            matches = parse_matches(html, url)
-            for match in matches:
-                # Cấu trúc chuẩn xác theo yêu cầu
-                extinf = f'#EXTINF:-1 tvg-logo="{match["logo"]}" group-title="Khán Đài TV" , {match["name"]}\n'
-                vlcopt = f'#EXTVLCOPT:http-referrer={match["referrer"]}\n'
-                stream = f'{match["stream"]}\n\n'
-                m3u_content.extend([extinf, vlcopt, stream])
+    links = get_match_links()
+    print(f"🔎 Tìm thấy {len(links)} link trực tiếp. Bắt đầu rà quét...")
+    
+    # Duyệt qua từng trận đấu
+    for url in links:
+        match = get_match_details(url)
+        if match:
+            # Ghi theo đúng cấu trúc anh Sơn yêu cầu
+            extinf = f'#EXTINF:-1 tvg-logo="{match["logo"]}" group-title="Khán Đài TV" , {match["name"]}\n'
+            vlcopt = f'#EXTVLCOPT:http-referrer={match["referrer"]}\n'
+            stream = f'{match["stream"]}\n\n'
+            
+            m3u_content.extend([extinf, vlcopt, stream])
 
-    # Ghi đè file m3u
+    # Lưu kết quả
     with open(M3U_FILE, "w", encoding="utf-8") as file:
         file.writelines(m3u_content)
-    print(f"Hoàn tất tạo {M3U_FILE} vào lúc {datetime.datetime.now()}")
+        
+    print(f"✅ Đã lưu thành công danh sách vào {M3U_FILE} lúc {datetime.datetime.now()}")
 
 if __name__ == "__main__":
     generate_playlist()
