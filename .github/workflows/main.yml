@@ -14,6 +14,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          ref: main
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -28,11 +30,11 @@ jobs:
       - name: Run Scraper
         run: python scraper_khandai.py
 
-      - name: Commit and push changes
-        run: |
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git config --global user.name "github-actions[bot]"
-          git add khandai.m3u
-          git commit -m "Auto update khandai.m3u [skip ci]" || exit 0
-          git push || exit 0
+      - name: Auto Commit and Push M3U
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "Auto update khandai.m3u [skip ci]"
+          file_pattern: "khandai.m3u"
+          commit_user_name: "github-actions[bot]"
+          commit_user_email: "github-actions[bot]@users.noreply.github.com"
           
