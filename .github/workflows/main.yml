@@ -5,7 +5,6 @@ on:
     - cron: '0 */2 * * *'
   workflow_dispatch:
 
-# Cấp quyền ghi cho GITHUB_TOKEN để push file khandai.m3u
 permissions:
   contents: write
 
@@ -31,15 +30,9 @@ jobs:
 
       - name: Commit and push changes
         run: |
-          git config --local user.email "github-actions[bot]@users.noreply.github.com"
-          git config --local user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git config --global user.name "github-actions[bot]"
           git add khandai.m3u
-          
-          # Kiểm tra nếu file khandai.m3u có sự thay đổi mới commit và push
-          if git status --porcelain | grep -q "khandai.m3u"; then
-            git commit -m "Auto update khandai.m3u [skip ci]"
-            git push
-          else
-            echo "Không có thay đổi mới trong file khandai.m3u."
-          fi
+          git commit -m "Auto update khandai.m3u [skip ci]" || exit 0
+          git push || exit 0
           
