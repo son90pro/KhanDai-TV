@@ -2,8 +2,17 @@ import sys
 import time
 import re
 import json
+import subprocess
 from datetime import datetime, timezone, timedelta
 from urllib.parse import quote, urljoin
+
+# Tự động cài đặt cloudscraper nếu chưa có môi trường
+try:
+    import cloudscraper
+except ImportError:
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "cloudscraper"])
+    import cloudscraper
+
 import requests
 from bs4 import BeautifulSoup
 
@@ -12,14 +21,13 @@ WORKER_DOMAIN = "chuoi-chien-iptv.sonnguyen90pro.workers.dev"
 OUTPUT_FILE = "khandai.m3u"
 GROUP_NAME = "Khán Đài TV"
 
-# Bổ sung thêm các domain dự phòng thường dùng của Khán Đài
+# Danh sách domain mới nhất
 DOMAINS = [
     "https://khandai1.link",
-    "https://khandai.tv",
-    "https://khandai.live",
-    "https://khandai.net",
     "https://khandai2.link",
-    "https://khandai3.link"
+    "https://khandai3.link",
+    "https://khandai.org",
+    "https://khandai.vip"
 ]
 
 COUNTRY_FLAGS = {
@@ -33,35 +41,39 @@ COUNTRY_FLAGS = {
     "lithuania": "lt", "azerbaijan": "az", "austria": "at", "kosovo": "xk"
 }
 
-HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-    "Accept-Language": "vi-VN,vi;q=0.9,en-US;q=0.8,en;q=0.7"
-}
+def create_cf_scraper():
+    """Tạo scraper vượt rào Cloudflare"""
+    return cloudscraper.create_scraper(
+        browser={
+            'browser': 'chrome',
+            'platform': 'windows',
+            'desktop': True
+        }
+    )
 
 def fetch_page(target_url: str) -> str:
-    print(f"[*] Đang thử truy cập: {target_url}")
-    # 1. Thử tải trực tiếp
-    try:
-        res = requests.get(target_url, headers=HEADERS, timeout=10)
-        print(f"  -> Trực tiếp HTTP Status: {res.status_code}")
-        if res.status_code == 200 and len(res.text) > 500 and "Just a moment" not in res.text:
-            return res.text
-        elif "Just a moment" in res.text:
-            print("  -> Bị Cloudflare chặn hiển thị trang chờ.")
-    except Exception as e:
-        print(f"  -> Lỗi kết nối trực tiếp: {e}")
+    print(f"[*] Đang kết nối tới: {target_url}")
+    scraper = create_cf_scraper()
 
-    # 2. Thử tải qua Worker Proxy (Vượt IP GitHub Actions)
-    proxy_url = f"https://{WORKER_DOMAIN}/proxy?url={quote(target_url, safe='')}"
-    print(f"[*] Đang thử qua Proxy Worker...")
+    # 1. Thử dùng Cloudscraper giải mã Cloudflare
     try:
-        res = requests.get(proxy_url, headers=HEADERS, timeout=12)
-        print(f"  -> Proxy HTTP Status: {res.status_code}")
-        if res.status_code == 200 and len(res.text) > 500 and "Just a moment" not in res.text:
+        res = scraper.get(target_url, timeout=15)
+        print(f"  -> Cloudscraper Status: {res.status_code}")
+        if res.status_code == 200 and len(res.text) > 1000 and "Just a moment" not in res.text:
             return res.text
     except Exception as e:
-        print(f"  -> Lỗi kết nối Proxy: {e}")
+        print(f"  -> Cloudscraper lỗi: {e}")
+
+    # 2. Thử qua Proxy Worker
+    proxy_url = f"https://{WORKER_DOMAIN}/proxy?url={quote(target_url, safe='')}"
+    print(f"[*] Đang kết nối qua Worker Proxy...")
+    try:
+        res = requests.get(proxy_url, timeout=15)
+        print(f"  -> Worker Proxy Status: {res.status_code}")
+        if res.status_code == 200 and len(res.text) > 1000:
+            return res.text
+    except Exception as e:
+        print(f"  -> Worker Proxy lỗi: {e}")
 
     return ""
 
@@ -120,19 +132,18 @@ def run_scraper():
         if html:
             html_content = html
             working_domain = domain
-            print(f"[+] Lấy HTML thành công từ: {domain}")
+            print(f"[+] VƯỢT CLOUDFLARE THÀNH CÔNG TỪ: {domain}")
             break
 
     if not html_content:
-        print("[!] TẤT CẢ CÁC DOMAIN ĐỀU THẤT BẠI HOẶC BỊ CHẶN.")
-        print("[!] Script sẽ dừng lại để bảo vệ file M3U cũ không bị xóa trắng.")
-        sys.exit(1) # Báo lỗi cho GitHub Actions biết để bôi đỏ log
+        print("[!] TẤT CẢ DOMAIN ĐỀU THẤT BẠI. DỪNG TIẾN TRÌNH ĐỂ GIỮ FILE M3U CŨ.")
+        sys.exit(1)
 
     soup = BeautifulSoup(html_content, 'html.parser')
     matches_data = []
     seen_urls = set()
 
-    # 1. Quét JSON
+    # 1. Giải mã cấu trúc Next.js JSON (__NEXT_DATA__)
     next_data_tag = soup.find('script', id='__NEXT_DATA__')
     if next_data_tag and next_data_tag.string:
         try:
@@ -162,9 +173,9 @@ def run_scraper():
                         "time": item.get('time', '00:00'), "date": item.get('date', today_str)
                     })
         except Exception as e:
-            print(f"[-] Lỗi đọc JSON: {e}")
+            print(f"[-] Lỗi bóc tách JSON: {e}")
 
-    # 2. Quét HTML dự phòng
+    # 2. Bóc tách DOM HTML nếu JSON không có
     if not matches_data:
         for a in soup.find_all('a', href=True):
             href = a['href']
@@ -194,10 +205,10 @@ def run_scraper():
                     "time": time_str, "date": date_str
                 })
 
-    print(f"[*] Tìm thấy {len(matches_data)} trận đấu. Đang tạo link m3u8...")
+    print(f"[*] Tìm thấy {len(matches_data)} trận đấu. Đang tổng hợp kịch bản M3U...")
     
     if not matches_data:
-        print("[!] Đọc được HTML nhưng không có trận nào. Giữ nguyên file cũ.")
+        print("[!] Không tìm thấy danh sách trận đấu. Giữ nguyên M3U hiện tại.")
         sys.exit(1)
 
     parsed_items = []
@@ -223,7 +234,7 @@ def run_scraper():
 
     parsed_items.sort(key=lambda x: (x['dt'].date(), not x['is_live'], x['dt'].time()))
 
-    # Lọc trùng kênh
+    # Lọc trùng tên kênh
     final_matches, title_tracker = [], {}
     for p_item in parsed_items:
         raw_title = p_item['title']
@@ -234,8 +245,8 @@ def run_scraper():
             title_tracker[raw_title] = 1
         final_matches.append(p_item)
 
-    # GHI FILE: Chỉ tạo file khi thực sự có dữ liệu
-    print(f"[*] Tiến hành ghi {len(final_matches)} kênh vào {OUTPUT_FILE}...")
+    # Đưa kết quả vào file M3U
+    print(f"[*] Tiến hành ghi {len(final_matches)} trận vào file {OUTPUT_FILE}...")
     with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
         f.write('#EXTM3U tvg-shift="0"\n\n')
         for item in final_matches:
@@ -245,7 +256,7 @@ def run_scraper():
             f.write(f'#EXTVLCOPT:http-referrer={working_domain}/\n')
             f.write(f'{stream_url}\n\n')
 
-    print("[HOÀN THÀNH] Đã xuất file thành công!")
+    print("[THÀNH CÔNG] File M3U đã được tạo mới đầy đủ danh sách kênh!")
 
 if __name__ == "__main__":
     run_scraper()
