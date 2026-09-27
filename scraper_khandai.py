@@ -94,18 +94,24 @@ def clean_match_title(title_raw: str) -> str:
     clean = re.sub(r'\s+', ' ', clean)
     return clean
 
-def extract_blv_from_text(text: str) -> str:
-    # Nhận diện tên BLV đi sau các từ khóa quen thuộc
+def extract_blv_from_html(html_text: str) -> str:
+    # Lấy text thuần túy, loại bỏ hoàn toàn các thẻ HTML và script rác
+    soup = BeautifulSoup(html_text, 'html.parser')
+    for script_or_style in soup(["script", "style"]):
+        script_or_style.decompose()
+    clean_text = soup.get_text(separator=' ')
+
     patterns = [
-        r'(?:BLV|Bình luận viên|Caster)\s*[:\-]?\s*([A-ZÀ-Ỹ][a-zà-ỹ\s]{1,15})',
-        r'\((?:BLV|Caster)?\s*([A-ZÀ-Ỹ][a-zà-ỹ]{1,12})\)'
+        r'(?:BLV|Bình luận viên|Caster)\s*[:\-]?\s*([A-ZÀ-Ỹa-zà-ỹ\s]{2,20})',
+        r'\((?:BLV|Caster)?\s*([A-ZÀ-Ỹa-zà-ỹ]{2,15})\)'
     ]
     for pat in patterns:
-        match = re.search(pat, text, re.IGNORECASE)
+        match = re.search(pat, clean_text, re.IGNORECASE)
         if match:
-            blv_name = match.group(1).strip()
-            if len(blv_name) > 1 and not blv_name.lower() in ["hls", "live"]:
-                return blv_name
+            name = match.group(1).strip()
+            # Loại bỏ các từ khóa hệ thống bị bắt nhầm
+            if name.lower() not in ["script", "style", "html", "body", "div", "span", "hls", "live", "link", "function", "var"]:
+                return name
     return ""
 
 def run_scraper():
@@ -132,7 +138,7 @@ def run_scraper():
     matches_data = []
     seen_urls = set()
 
-    # 1. Quét qua cấu trúc JSON NextJS nếu có sẵn
+    # 1. Quét qua cấu trúc JSON NextJS
     next_data_tag = soup.find('script', id='__NEXT_DATA__')
     if next_data_tag and next_data_tag.string:
         try:
@@ -151,7 +157,6 @@ def run_scraper():
                     home = item.get('homeTeam', {}).get('name', '') or item.get('home_name', '')
                     away = item.get('awayTeam', {}).get('name', '') or item.get('away_name', '')
                     teams = f"{home} vs {away}" if home and away else item.get('title', 'Trận đấu Trực Tiếp')
-                    
                     blv = item.get('commentator', '') or item.get('blv', '') or item.get('caster', '')
                     
                     matches_data.append({
@@ -165,7 +170,7 @@ def run_scraper():
         except Exception as e:
             print(f"[-] Lỗi bóc JSON: {e}")
 
-    # 2. Nếu JSON trống, tiến hành quét DOM HTML trang chủ
+    # 2. Quét DOM HTML trang chủ nếu JSON không có
     if not matches_data:
         for a in soup.find_all('a', href=True):
             href = a['href']
@@ -175,10 +180,10 @@ def run_scraper():
                 seen_urls.add(full_url)
 
                 card_element = a.parent if a.parent else a
+                card_html = str(card_element)
+                blv_name = extract_blv_from_html(card_html)
+
                 text = card_element.get_text(separator=' ', strip=True)
-
-                blv_name = extract_blv_from_text(text)
-
                 time_match = re.search(r'\b(2[0-3]|[0-1]?\d)[:h](\d{2})\b', text)
                 time_str = f"{time_match.group(1).zfill(2)}:{time_match.group(2)}" if time_match else "00:00"
 
@@ -202,7 +207,7 @@ def run_scraper():
                     "date": today_str
                 })
 
-    print(f"[*] Tìm thấy {len(matches_data)} trận. Đang tiến hành quét sâu từng trang chi tiết để lấy BLV và luồng video...")
+    print(f"[*] Tìm thấy {len(matches_data)} trận. Đang quét sâu trang chi tiết để lấy link luồng phát chuẩn xác...")
     
     final_matches = []
     for item in matches_data:
@@ -210,18 +215,26 @@ def run_scraper():
         m3u8_url = ""
         
         if sub_html:
-            # Tìm link .m3u8 trong trang chi tiết
+            # Tìm link .m3u8 thông thường
             m3u8_matches = re.findall(r'https?://[^\s"\'<>]+\.m3u8[^\s"\'<>]*', sub_html)
             if m3u8_matches:
                 m3u8_url = m3u8_matches[0]
-            
-            # Nếu ở ngoài chưa có tên BLV, quét sâu bên trong trang chi tiết
-            if not item['blv']:
-                item['blv'] = extract_blv_from_text(sub_html)
+            else:
+                # Tìm link .m3u8 bị escape trong JavaScript (dạng https:\/\/...\/index.m3u8)
+                escaped_matches = re.findall(r'https?:\\/\\/[^\s"\'<>]+\.m3u8[^\s"\'<>]*', sub_html)
+                if escaped_matches:
+                    m3u8_url = escaped_matches[0].replace(r'\/', '/')
+
+            # Lấy tên BLV từ trang chi tiết nếu ngoài trang chủ chưa có
+            if not item['blv'] or item['blv'].lower() == "script":
+                item['blv'] = extract_blv_from_html(sub_html)
 
         is_live = bool(m3u8_url)
         live_prefix = "🟢 " if is_live else "⚪ "
-        blv_suffix = f" (BLV {item['blv'].title()})" if item['blv'] else ""
+        
+        # Làm sạch tên BLV cuối cùng lần nữa
+        final_blv = item['blv'] if item['blv'].lower() not in ["script", "style", "html"] else ""
+        blv_suffix = f" (BLV {final_blv.title()})" if final_blv else ""
         
         full_title = f"{live_prefix}{item['time']} {item['date']} {detect_sport_icon(item['sport'])} {item['teams']}{blv_suffix}"
 
@@ -236,7 +249,6 @@ def run_scraper():
     with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
         f.write('#EXTM3U tvg-shift="0"\n\n')
         for item in final_matches:
-            # Định tuyến luồng qua Cloudflare Worker Proxy để mở video ổn định trên tivi
             if item['m3u8_url']:
                 stream_url = f"https://{WORKER_DOMAIN}/proxy?url={quote(item['m3u8_url'], safe='')}"
             else:
@@ -247,7 +259,7 @@ def run_scraper():
             f.write(f'#EXTVLCOPT:http-referrer={working_domain}/\n')
             f.write(f'{stream_url}\n\n')
 
-    print("[THÀNH CÔNG] Hoàn tất cập nhật M3U!")
+    print("[THÀNH CÔNG] Đã cập nhật file M3U hoàn chỉnh!")
 
 if __name__ == "__main__":
     run_scraper()
