@@ -11,7 +11,6 @@ BASE_URL = "https://khandai1.link"
 OUTPUT_FILE = "khandai.m3u"
 GROUP_NAME = "Khán Đài TV"
 
-# Từ điển cờ TẤT CẢ quốc gia & vùng lãnh thổ trên thế giới (Tiếng Anh & Tiếng Việt)
 COUNTRY_FLAGS = {
     # Châu Á & Đông Nam Á
     "vietnam": "vn", "việt nam": "vn", "philippines": "ph", "thailand": "th", "thái lan": "th",
@@ -35,20 +34,13 @@ COUNTRY_FLAGS = {
     "georgia": "ge", "armenia": "am", "azerbaijan": "az", "cyprus": "cy", "estonia": "ee", "latvia": "lv",
     "lithuania": "lt", "luxembourg": "lu", "malta": "mt", "moldova": "md", "montenegro": "me", "kosovo": "xk",
 
-    # Châu Phi
-    "south africa": "za", "nam phi": "za", "guinea": "gn", "equatorial guinea": "gq", "kenya": "ke",
-    "eritrea": "er", "egypt": "eg", "ai cập": "eg", "morocco": "ma", "ma rốc": "ma", "senegal": "sn",
-    "algeria": "dz", "nigeria": "ng", "cameroon": "cm", "ghana": "gh", "ivory coast": "ci", "bờ biển ngà": "ci",
-
-    # Bắc, Trung Mỹ & Nam Mỹ
-    "usa": "us", "mỹ": "us", "mexico": "mx", "canada": "ca", "brazil": "br", "argentina": "ar", "uruguay": "uy",
-    "colombia": "co", "chile": "cl", "peru": "pe", "ecuador": "ec", "paraguay": "py", "venezuela": "ve"
+    # Châu Phi & Mỹ
+    "south africa": "za", "nam phi": "za", "egypt": "eg", "ai cập": "eg", "morocco": "ma", "ma rốc": "ma",
+    "usa": "us", "mỹ": "us", "mexico": "mx", "canada": "ca", "brazil": "br", "argentina": "ar", "uruguay": "uy"
 }
 
 def get_team_logo_url(teams_str: str) -> str:
-    """Khớp Cờ Quốc gia hoặc tự động tạo Logo Badge sắc nét cho CLB"""
     t_lower = teams_str.lower()
-    
     for country_name, code in COUNTRY_FLAGS.items():
         pattern = r'\b' + re.escape(country_name) + r'\b'
         if re.search(pattern, t_lower):
@@ -57,23 +49,15 @@ def get_team_logo_url(teams_str: str) -> str:
     clean_title = re.sub(r'\b(vs|v|nữ|women|u23|u21|u19|u17)\b', '', teams_str, flags=re.IGNORECASE)
     words = [w[0].upper() for w in clean_title.split() if w[0].isalnum()]
     initials = "".join(words[:3]) if words else "KD"
-    
     return f"https://ui-avatars.com/api/?name={initials}&background=random&color=fff&size=256&bold=true&length=3"
 
 def detect_sport_icon(text: str) -> str:
-    """Tự động phân loại Icon môn thể thao (Bóng đá, Bóng chuyền, Bóng rổ,...)"""
     t_low = text.lower()
-    if any(k in t_low for k in ["volleyball", "bóng chuyền", "volley"]):
-        return "🏐"
-    elif any(k in t_low for k in ["basketball", "bóng rổ", "nba"]):
-        return "🏀"
-    elif any(k in t_low for k in ["tennis", "quần vợt"]):
-        return "🎾"
-    elif any(k in t_low for k in ["badminton", "cầu lông"]):
-        return "🏸"
-    elif any(k in t_low for k in ["table tennis", "bóng bàn"]):
-        return "🏓"
-    return "⚽"  # Mặc định là Bóng đá
+    if any(k in t_low for k in ["volleyball", "bóng chuyền", "volley"]): return "🏐"
+    if any(k in t_low for k in ["basketball", "bóng rổ", "nba"]): return "🏀"
+    if any(k in t_low for k in ["tennis", "quần vợt"]): return "🎾"
+    if any(k in t_low for k in ["badminton", "cầu lông"]): return "🏸"
+    return "⚽"
 
 def clean_word(w: str) -> str:
     w_low = w.lower()
@@ -83,10 +67,8 @@ def clean_word(w: str) -> str:
     return w.capitalize()
 
 def parse_teams_from_text_or_url(url: str, text: str) -> str:
-    """Trích xuất tên 2 đội thi đấu"""
-    # 1. Thử bóc tách từ URL
     try:
-        match = re.search(r'/(?:truc-tiep|match|live|room|xem|phong|link|stream)/([^/?#]+)', url)
+        match = re.search(r'/(?:truc-tiep|match|live|room|xem|phong|tran|stream)[^/]*/([^/?#]+)', url)
         slug = match.group(1) if match else next((p for p in url.split('/') if '-vs-' in p), "")
             
         if slug and '-vs-' in slug:
@@ -94,7 +76,6 @@ def parse_teams_from_text_or_url(url: str, text: str) -> str:
             if len(parts) == 2:
                 t1 = " ".join([clean_word(w) for w in parts[0].split('-') if w])
                 t2 = " ".join([clean_word(w) for w in parts[1].split('-') if w])
-                # Xóa bớt tên BLV lọt vào slug
                 t1 = re.sub(r'^(blv|caster)-[a-z0-9]+-', '', t1, flags=re.IGNORECASE)
                 t2 = re.sub(r'-\d+.*$', '', t2, flags=re.IGNORECASE)
                 if t1 and t2:
@@ -102,7 +83,6 @@ def parse_teams_from_text_or_url(url: str, text: str) -> str:
     except Exception:
         pass
 
-    # 2. Thử bóc tách từ Text
     lines = [line.strip() for line in text.split('\n') if line.strip()]
     for line in lines:
         if ' vs ' in line.lower() or ' - ' in line:
@@ -117,11 +97,9 @@ def parse_teams_from_text_or_url(url: str, text: str) -> str:
     return "Trận đấu Trực Tiếp"
 
 def parse_time_and_date(url: str, text: str, default_date: str):
-    """Trích xuất Giờ và Ngày diễn ra trận đấu"""
     extracted_time = "00:00"
     extracted_date = default_date
 
-    # Lấy Giờ
     t_match = re.search(r'\b(2[0-3]|[0-1]?\d)[:h](\d{2})\b', text, re.IGNORECASE)
     if t_match:
         extracted_time = f"{t_match.group(1).zfill(2)}:{t_match.group(2)}"
@@ -130,7 +108,6 @@ def parse_time_and_date(url: str, text: str, default_date: str):
         if url_t:
             extracted_time = f"{url_t.group(1).zfill(2)}:{url_t.group(2)}"
 
-    # Lấy Ngày
     d_match = re.search(r'\b(\d{1,2})[/.-](\d{1,2})\b', text)
     if d_match:
         extracted_date = f"{d_match.group(1).zfill(2)}/{d_match.group(2).zfill(2)}"
@@ -154,7 +131,6 @@ def parse_datetime_obj(date_str: str, time_str: str, vn_tz) -> datetime:
         return datetime(2099, 1, 1, 0, 0, tzinfo=vn_tz)
 
 def get_match_details(context, match_url):
-    """Mở chi tiết trận đấu và bắt luồng video .m3u8"""
     page = context.new_page()
     m3u8_found = []
 
@@ -169,18 +145,17 @@ def get_match_details(context, match_url):
     match_info = {"m3u8_url": "", "is_live": False}
 
     try:
-        page.goto(match_url, timeout=15000, wait_until="domcontentloaded")
-        time.sleep(1.5)
+        page.goto(match_url, timeout=12000, wait_until="domcontentloaded")
+        time.sleep(1)
         
-        # Click tự động để kích hoạt Player
         for selector in ['.play-btn', '.btn-play', '#player', 'iframe', 'video', '.player-wrapper', 'button']:
             try:
-                page.click(selector, timeout=600)
-                time.sleep(0.4)
+                page.click(selector, timeout=500)
+                time.sleep(0.3)
             except Exception:
                 pass
 
-        for _ in range(5):
+        for _ in range(4):
             if m3u8_found: break
             time.sleep(0.5)
 
@@ -219,7 +194,12 @@ def run_scraper():
     with sync_playwright() as p:
         browser = p.chromium.launch(
             headless=True,
-            args=["--disable-blink-features=AutomationControlled", "--no-sandbox", "--disable-setuid-sandbox"]
+            args=[
+                "--disable-blink-features=AutomationControlled",
+                "--no-sandbox",
+                "--disable-setuid-sandbox",
+                "--disable-dev-shm-usage"
+            ]
         )
         context = browser.new_context(
             user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
@@ -230,36 +210,41 @@ def run_scraper():
         page = context.new_page()
 
         try:
-            print(f"[*] Đang kết nối tới Khán Đài TV: {BASE_URL}")
-            page.goto(BASE_URL, timeout=60000, wait_until="domcontentloaded")
-            time.sleep(2)
+            print(f"[*] Đang truy cập Khán Đài TV: {BASE_URL}")
+            page.goto(BASE_URL, timeout=45000, wait_until="domcontentloaded")
+            time.sleep(3)
 
-            # Cuộn trang để load hết trận
-            for _ in range(4):
+            # Cuộn trang 5 lần để đảm bảo toàn bộ danh sách trận tải ra hết
+            for _ in range(5):
                 page.evaluate("window.scrollBy(0, 800)")
                 time.sleep(0.5)
 
+            # QUÉT MỞ RỘNG: Lấy tất cả link trận đấu có chứa từ khóa thể thao hoặc '-vs-'
             raw_matches = page.evaluate('''() => {
                 const matches = [];
-                const links = Array.from(document.querySelectorAll('a[href*="/truc-tiep/"], a[href*="/match/"], a[href*="/live/"], a[href*="/xem/"], a[href*="/room/"], a[href*="/phong/"]'));
+                const links = Array.from(document.querySelectorAll('a[href]'));
                 const seenUrls = new Set();
 
                 links.forEach(link => {
                     const href = link.getAttribute('href');
-                    if (!href) return;
+                    if (!href || href === '#' || href.startsWith('javascript:')) return;
+
+                    // Kiểm tra đường dẫn chứa từ khóa trận đấu
+                    const isMatchUrl = /truc-tiep|match|live|xem|room|phong|tran|-vs-|bong-da/i.test(href);
+                    if (!isMatchUrl) return;
 
                     const fullUrl = href.startsWith('http') ? href : window.location.origin + href;
-                    if (seenUrls.has(fullUrl)) return;
+                    
+                    // Loại bỏ trang chủ hoặc link không hợp lệ
+                    if (fullUrl === window.location.origin + '/' || seenUrls.has(fullUrl)) return;
                     seenUrls.add(fullUrl);
 
                     let card = link;
                     let parent = link.parentElement;
-                    while (parent && parent.tagName !== 'BODY') {
-                        if (parent.querySelectorAll('a').length === 1) {
+                    for (let i = 0; i < 3; i++) {
+                        if (parent && parent.innerText && parent.innerText.length > 5) {
                             card = parent;
                             parent = parent.parentElement;
-                        } else {
-                            break;
                         }
                     }
 
@@ -273,19 +258,18 @@ def run_scraper():
             }''')
 
             page.close()
-            print(f"[*] Đã lấy được {len(raw_matches)} trận đấu từ Khán Đài TV. Đang bóc tách dữ liệu...")
+            print(f"[*] Đã tìm thấy {len(raw_matches)} link trận đấu trên trang chủ!")
 
             parsed_items = []
-            for item in raw_matches:
+            for idx, item in enumerate(raw_matches, 1):
                 text, url = item['fullText'], item['url']
-                if not text and not url: continue
+                print(f"[{idx}/{len(raw_matches)}] Đang xử lý: {url}")
 
                 details = get_match_details(context, url)
                 extracted_time, match_date = parse_time_and_date(url, text, today_str)
 
                 is_currently_live = details['is_live'] or any(k in text.lower() for k in ["hiệp 1", "hiệp 2", "đang đá", "đang diễn ra", "live"])
 
-                # Lấy tên BLV
                 blv_name = ""
                 blv_match = re.search(r'\((?:BLV|Caster)?\s*([^\)]+)\)', text, re.IGNORECASE)
                 if blv_match:
@@ -299,8 +283,7 @@ def run_scraper():
                 sport_icon = detect_sport_icon(text + " " + url)
                 logo = get_team_logo_url(teams_str)
 
-                # Format tiêu đề CHUẨN 100% theo ảnh mẫu:
-                # [🟢] HH:MM DD/MM ⚽ Đội 1 vs Đội 2 (Tên BLV) [hls]
+                # Format tiêu đề theo mẫu chuẩn: 🟢 20:00 27/09 ⚽ Lithuania vs Azerbaijan (Kền Kền) [hls]
                 live_prefix = "🟢 " if is_currently_live else ""
                 blv_suffix = f" ({blv_name.title()})" if blv_name else ""
                 
@@ -316,7 +299,6 @@ def run_scraper():
                     "dt": dt_obj
                 })
 
-            # Sắp xếp danh sách: Ưu tiên trận đang Live lên đầu, sau đó theo Thời gian
             parsed_items.sort(key=lambda x: (x['dt'].date(), not x['is_live'], x['dt'].time()))
 
             seen_urls = set()
@@ -336,18 +318,17 @@ def run_scraper():
                 final_matches.append(p_item)
 
         except Exception as e:
-            print(f"[!] Lỗi khi cào dữ liệu: {e}")
+            print(f"[!] Lỗi nghiêm trọng: {e}")
         finally:
             browser.close()
 
-    # --- XUẤT FILE M3U PLAYLIST ---
+    # XUẤT FILE M3U PLAYLIST
     with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
         f.write('#EXTM3U tvg-shift="0"\n\n')
 
         for item in final_matches:
             logo_attr = f'tvg-logo="{item["logo"]}"'
             
-            # Sử dụng Worker Proxy để stream trực tiếp mượt mà trên Smart TV
             if item.get('m3u8_url'):
                 stream_url = f"https://{WORKER_DOMAIN}/proxy?url={quote(item['m3u8_url'], safe='')}"
             else:
@@ -358,8 +339,8 @@ def run_scraper():
             f.write(f'#EXTVLCOPT:http-referrer={BASE_URL}/\n')
             f.write(f'{stream_url}\n\n')
 
-    print(f"[*] Đã tạo thành công file {OUTPUT_FILE} với {len(final_matches)} trận đấu thuộc nhóm '{GROUP_NAME}'!")
+    print(f"[SUCCESS] Đã ghi thành công {len(final_matches)} trận đấu vào file {OUTPUT_FILE}!")
 
 if __name__ == "__main__":
     run_scraper()
-        
+    
