@@ -1,98 +1,110 @@
-from playwright.sync_api import sync_playwright
+import cloudscraper
+from bs4 import BeautifulSoup
+import re
 import datetime
-import time
 
-BASE_URL = "https://khandai1.link"
+# Danh sách các link dự phòng nếu trang chính bị sập
+BASE_URLS = [
+    "https://khandai1.link", 
+    "https://khandai2.link", 
+    "https://khandai3.link"
+]
 M3U_FILE = "khandai.m3u"
 
 def get_matches():
     m3u_lines = ["#EXTM3U\n\n"]
+    match_links = set()
     
-    with sync_playwright() as p:
-        # Mở Chrome vô hình
-        browser = p.chromium.launch(headless=True)
-        context = browser.new_context(
-            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-        )
-        page = context.new_page()
-        
-        print(f"Đang mở trang chủ {BASE_URL}...")
+    # Khởi tạo công cụ vượt tường lửa Cloudflare
+    scraper = cloudscraper.create_scraper(
+        browser={
+            'browser': 'chrome', 
+            'platform': 'windows', 
+            'desktop': True
+        }
+    )
+    
+    working_url = None
+    
+    # 1. Tìm trang chủ nào đang hoạt động và lấy link trận đấu
+    for url in BASE_URLS:
+        print(f"Đang thử kết nối trang chủ: {url}...")
         try:
-            page.goto(BASE_URL, timeout=30000, wait_until="domcontentloaded")
-            page.wait_for_timeout(5000) # Đợi 5 giây cho web load xong dữ liệu
-            
-            # Cuộn xuống cuối để web hiển thị hết các trận đấu
-            page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
-            page.wait_for_timeout(2000)
+            res = scraper.get(url, timeout=15)
+            if res.status_code == 200:
+                working_url = url
+                print("✅ Kết nối thành công!")
+                
+                soup = BeautifulSoup(res.text, 'html.parser')
+                # Tìm mọi thẻ link có chứa chữ 'truc-tiep'
+                for a in soup.find_all('a', href=True):
+                    href = a['href']
+                    if '/truc-tiep/' in href:
+                        full_link = href if href.startswith("http") else f"{working_url.rstrip('/')}/{href.lstrip('/')}"
+                        match_links.add(full_link)
+                break # Tìm được web sống thì dừng thử các link khác
         except Exception as e:
-            print("Lỗi tải trang chủ:", e)
-            browser.close()
-            return
+            print(f"❌ Không thể truy cập {url}: {e}")
             
-        # Tìm mọi thẻ link có chữ 'truc-tiep'
-        hrefs = page.evaluate("""() => {
-            const links = Array.from(document.querySelectorAll('a'));
-            return links.map(a => a.href).filter(href => href.includes('/truc-tiep/'));
-        }""")
-        
-        # Loại bỏ các link bị trùng lặp
-        match_links = list(set(hrefs))
-        print(f"🔎 Tìm thấy {len(match_links)} link trận đấu.")
-        
-        for link in match_links:
-            print(f"\nĐang vào phòng: {link}")
-            
-            match_name = "Trận đấu đang cập nhật"
-            logo_url = "https://khandai1.link/media/teams/logos/default.png"
-            m3u8_url = None
-            
-            # Tính năng "Nghe Lén Mạng": Nếu thấy mạng tải file m3u8 -> Lấy ngay
-            def handle_request(request):
-                nonlocal m3u8_url
-                if ".m3u8" in request.url and not m3u8_url:
-                    m3u8_url = request.url
+    if not match_links:
+        print("⚠️ Không tìm thấy link trận đấu nào! Ghi file rỗng để tránh lỗi GitHub Actions.")
+        with open(M3U_FILE, "w", encoding="utf-8") as f:
+            f.writelines(m3u_lines)
+        return
 
-            page.on("request", handle_request)
+    print(f"🔎 Đã gom được {len(match_links)} link trận đấu. Bắt đầu chui vào từng link...")
+    
+    # 2. Bóc tách chi tiết từng trận đấu
+    for link in match_links:
+        print(f"\nĐang quét: {link}")
+        try:
+            res = scraper.get(link, timeout=15)
+            if res.status_code != 200:
+                print("❌ Lỗi tải trang chi tiết.")
+                continue
+                
+            html = res.text
+            soup = BeautifulSoup(html, 'html.parser')
             
-            try:
-                page.goto(link, timeout=25000, wait_until="domcontentloaded")
-                # Đợi player tải m3u8 (chờ 6 giây)
-                page.wait_for_timeout(6000)
+            # Bóc tách tên trận đấu
+            title_text = soup.title.text if soup.title else "Trận đấu đang cập nhật"
+            match_name = title_text.replace("Trực tiếp", "").replace("Khán Đài TV", "").replace("|", "").strip()
+            
+            # Bóc tách Logo từ thẻ meta
+            logo_url = "https://khandai1.link/media/teams/logos/default.png"
+            og_image = soup.find('meta', property='og:image')
+            if og_image and og_image.get('content'):
+                logo_url = og_image['content']
                 
-                # Bóc tách tên trận đấu từ tiêu đề
-                title_text = page.title()
-                if title_text:
-                    match_name = title_text.replace("Trực tiếp", "").replace("Khán Đài TV", "").replace("|", "").strip()
-                
-                # Bóc tách Logo (từ hình ảnh chia sẻ mạng xã hội)
-                logo = page.evaluate("""() => {
-                    const meta = document.querySelector('meta[property="og:image"]');
-                    return meta ? meta.content : null;
-                }""")
-                if logo:
-                    logo_url = logo
+            # Lưới lọc Regex tóm link m3u8
+            m3u8_url = None
+            m3u8_match = re.search(r'(https?://[^"\'\s<>]+?\.m3u8[^"\'\s<>]*)', html)
+            
+            if m3u8_match:
+                m3u8_url = m3u8_match.group(1).replace('\\/', '/')
+            else:
+                # Tìm thử trong iframe dự phòng
+                iframe = soup.find('iframe')
+                if iframe and 'src' in iframe.attrs and 'm3u8' in iframe['src']:
+                    m3u8_url = iframe['src']
                     
-            except Exception as e:
-                print(f"Lỗi khi vào phòng: {e}")
-            
-            page.remove_listener("request", handle_request)
-            
-            # Xuất dữ liệu ra chuẩn m3u như yêu cầu
+            # Ghi chuẩn M3U
             if m3u8_url:
                 print(f"✅ ĐÃ CHỘP ĐƯỢC LINK: {m3u8_url.split('?')[0]}...")
                 extinf = f'#EXTINF:-1 tvg-logo="{logo_url}" group-title="Khán Đài TV" , 🟢 {match_name} [hls]\n'
-                vlcopt = f'#EXTVLCOPT:http-referrer={BASE_URL}/\n'
+                vlcopt = f'#EXTVLCOPT:http-referrer={working_url}/\n'
                 stream = f'{m3u8_url}\n\n'
                 m3u_lines.extend([extinf, vlcopt, stream])
             else:
-                print("❌ Trận này chưa có luồng phát hoặc bị mã hóa.")
-        
-        browser.close()
-        
-    # Ghi đè vào file khandai.m3u
+                print("❌ Trận này chưa có luồng phát hoặc bị mã hóa JS.")
+                
+        except Exception as e:
+            print(f"❌ Lỗi khi quét {link}: {e}")
+            
+    # 3. Lưu vào file M3U
     with open(M3U_FILE, "w", encoding="utf-8") as f:
         f.writelines(m3u_lines)
-    print(f"\n🎉 XONG! File đã tạo thành công lúc {datetime.datetime.now()}")
+    print(f"\n🎉 XONG! Đã lưu file {M3U_FILE} lúc {datetime.datetime.now()}")
 
 if __name__ == "__main__":
     get_matches()
