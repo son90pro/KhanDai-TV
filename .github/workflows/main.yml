@@ -3,37 +3,34 @@ name: Tự động cập nhật M3U Khán Đài TV
 on:
   schedule:
     - cron: '0 */2 * * *'
-  workflow_dispatch: 
+  workflow_dispatch:
 
 jobs:
   update-iptv:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
-
     steps:
-      - name: Lấy mã nguồn
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Cài đặt Python 3.10
+      - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
 
-      - name: Cài đặt Playwright & Chromium
+      - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install playwright beautifulsoup4
-          playwright install chromium --with-deps
+          pip install requests beautifulsoup4
 
-      - name: Chạy Bot Cào Dữ Liệu
-        run: python scraper.py
+      - name: Run Scraper
+        run: python scraper_khandai.py
 
-      - name: Lưu và đẩy file m3u lên Github
+      - name: Commit and push changes
         run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
           git add khandai.m3u
-          git diff --quiet && git diff --staged --quiet || git commit -m "Cập nhật link IPTV m3u8 mới nhất"
+          # Kiểm tra nếu có thay đổi mới commit, tránh lỗi Exit code 128
+          git diff --staged --quiet || git commit -m "Auto update khandai.m3u"
           git push
           
