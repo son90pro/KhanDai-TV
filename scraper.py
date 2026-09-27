@@ -11,6 +11,7 @@ BASE_URL = "https://khandai1.link"
 OUTPUT_FILE = "khandai.m3u"
 GROUP_NAME = "Khán Đài TV"
 
+# Từ điển cờ TẤT CẢ quốc gia & vùng lãnh thổ trên thế giới (Tiếng Anh & Tiếng Việt)
 COUNTRY_FLAGS = {
     # Châu Á & Đông Nam Á
     "vietnam": "vn", "việt nam": "vn", "philippines": "ph", "thailand": "th", "thái lan": "th",
@@ -34,7 +35,7 @@ COUNTRY_FLAGS = {
     "georgia": "ge", "armenia": "am", "azerbaijan": "az", "cyprus": "cy", "estonia": "ee", "latvia": "lv",
     "lithuania": "lt", "luxembourg": "lu", "malta": "mt", "moldova": "md", "montenegro": "me", "kosovo": "xk",
 
-    # Châu Phi & Mỹ
+    # Châu Phi & Bắc, Nam Mỹ
     "south africa": "za", "nam phi": "za", "egypt": "eg", "ai cập": "eg", "morocco": "ma", "ma rốc": "ma",
     "usa": "us", "mỹ": "us", "mexico": "mx", "canada": "ca", "brazil": "br", "argentina": "ar", "uruguay": "uy"
 }
@@ -145,7 +146,7 @@ def get_match_details(context, match_url):
     match_info = {"m3u8_url": "", "is_live": False}
 
     try:
-        page.goto(match_url, timeout=12000, wait_until="domcontentloaded")
+        page.goto(match_url, timeout=15000, wait_until="domcontentloaded")
         time.sleep(1)
         
         for selector in ['.play-btn', '.btn-play', '#player', 'iframe', 'video', '.player-wrapper', 'button']:
@@ -198,72 +199,108 @@ def run_scraper():
                 "--disable-blink-features=AutomationControlled",
                 "--no-sandbox",
                 "--disable-setuid-sandbox",
-                "--disable-dev-shm-usage"
+                "--disable-dev-shm-usage",
+                "--window-size=1920,1080"
             ]
         )
         context = browser.new_context(
-            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-            viewport={"width": 1280, "height": 720},
+            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
+            viewport={"width": 1920, "height": 1080},
             timezone_id="Asia/Ho_Chi_Minh",
             locale="vi-VN"
         )
+        
+        # Bypass cờ phát hiện automation
         page = context.new_page()
+        page.add_init_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined});")
 
         try:
             print(f"[*] Đang truy cập Khán Đài TV: {BASE_URL}")
-            page.goto(BASE_URL, timeout=45000, wait_until="domcontentloaded")
+            page.goto(BASE_URL, timeout=60000, wait_until="domcontentloaded")
+
+            # --- KHẮC PHỦC LỖI CLOUDFLARE ---
+            print("[*] Đang kiểm tra xác thực Cloudflare...")
+            for i in range(15):
+                title = page.title()
+                if "Just a moment" not in title and "Cloudflare" not in title and "Attention Required" not in title:
+                    print(f"[+] Đã vượt qua Cloudflare thành công! Trang hiện tại: {title}")
+                    break
+                print(f"[-] Đang chờ Cloudflare giải mã... ({i+1}/15s)")
+                time.sleep(1)
+
             time.sleep(3)
 
-            # Cuộn trang 5 lần để đảm bảo toàn bộ danh sách trận tải ra hết
+            # Cuộn trang để kích hoạt Lazy Load
             for _ in range(5):
                 page.evaluate("window.scrollBy(0, 800)")
                 time.sleep(0.5)
 
-            # QUÉT MỞ RỘNG: Lấy tất cả link trận đấu có chứa từ khóa thể thao hoặc '-vs-'
+            # QUÉT TOÀN DIỆN CẢ DỮ LIỆU NGẦM VÀ THẺ HTML
             raw_matches = page.evaluate('''() => {
                 const matches = [];
-                const links = Array.from(document.querySelectorAll('a[href]'));
                 const seenUrls = new Set();
 
+                // 1. Thử cào từ dữ liệu Next.js JSON ngầm (nếu có)
+                const nextDataEl = document.getElementById('__NEXT_DATA__');
+                if (nextDataEl) {
+                    try {
+                        const jData = JSON.parse(nextDataEl.innerText);
+                        const strData = JSON.stringify(jData);
+                        const urlMatches = strData.match(/\\\\?\/[a-zA-Z0-9_-]+-vs-[a-zA-Z0-9_-]+/g);
+                        if (urlMatches) {
+                            urlMatches.forEach(u => {
+                                const cleanU = u.replace(/\\\\/g, '');
+                                const fullUrl = window.location.origin + cleanU;
+                                if (!seenUrls.has(fullUrl)) {
+                                    seenUrls.add(fullUrl);
+                                    matches.push({ url: fullUrl, fullText: cleanU });
+                                }
+                            });
+                        }
+                    } catch(e) {}
+                }
+
+                // 2. Cào từ tất cả các thẻ <a> trên trang
+                const links = Array.from(document.querySelectorAll('a[href]'));
                 links.forEach(link => {
                     const href = link.getAttribute('href');
                     if (!href || href === '#' || href.startsWith('javascript:')) return;
 
-                    // Kiểm tra đường dẫn chứa từ khóa trận đấu
-                    const isMatchUrl = /truc-tiep|match|live|xem|room|phong|tran|-vs-|bong-da/i.test(href);
-                    if (!isMatchUrl) return;
+                    let fullUrl = href;
+                    try {
+                        fullUrl = new URL(href, window.location.origin).href;
+                    } catch(e) { return; }
 
-                    const fullUrl = href.startsWith('http') ? href : window.location.origin + href;
-                    
-                    // Loại bỏ trang chủ hoặc link không hợp lệ
-                    if (fullUrl === window.location.origin + '/' || seenUrls.has(fullUrl)) return;
-                    seenUrls.add(fullUrl);
+                    if (fullUrl === window.location.origin || fullUrl === window.location.origin + '/') return;
+                    if (seenUrls.has(fullUrl)) return;
 
-                    let card = link;
-                    let parent = link.parentElement;
-                    for (let i = 0; i < 3; i++) {
-                        if (parent && parent.innerText && parent.innerText.length > 5) {
-                            card = parent;
-                            parent = parent.parentElement;
-                        }
+                    // Nhận diện thẻ là trận đấu
+                    const card = link.closest('.match-item, .card, .item, li, tr') || link;
+                    const cardText = card ? card.innerText || '' : link.innerText || '';
+
+                    const isMatch = href.includes('-vs-') || 
+                                    /truc-tiep|match|live|xem|room|phong|tran|stream|bong-da/i.test(href) ||
+                                    /vs|vị/i.test(cardText);
+
+                    if (isMatch) {
+                        seenUrls.add(fullUrl);
+                        matches.push({
+                            url: fullUrl,
+                            fullText: cardText
+                        });
                     }
-
-                    matches.push({
-                        url: fullUrl,
-                        fullText: card ? card.innerText || '' : link.innerText || ''
-                    });
                 });
 
                 return matches;
             }''')
 
             page.close()
-            print(f"[*] Đã tìm thấy {len(raw_matches)} link trận đấu trên trang chủ!")
+            print(f"[*] Quét thành công! Tìm thấy {len(raw_matches)} trận đấu!")
 
             parsed_items = []
             for idx, item in enumerate(raw_matches, 1):
                 text, url = item['fullText'], item['url']
-                print(f"[{idx}/{len(raw_matches)}] Đang xử lý: {url}")
+                print(f"[{idx}/{len(raw_matches)}] Đang bóc tách: {url}")
 
                 details = get_match_details(context, url)
                 extracted_time, match_date = parse_time_and_date(url, text, today_str)
@@ -283,7 +320,7 @@ def run_scraper():
                 sport_icon = detect_sport_icon(text + " " + url)
                 logo = get_team_logo_url(teams_str)
 
-                # Format tiêu đề theo mẫu chuẩn: 🟢 20:00 27/09 ⚽ Lithuania vs Azerbaijan (Kền Kền) [hls]
+                # Định dạng tiêu đề mẫu: 🟢 20:00 27/09 ⚽ Lithuania vs Azerbaijan (Kền Kền) [hls]
                 live_prefix = "🟢 " if is_currently_live else ""
                 blv_suffix = f" ({blv_name.title()})" if blv_name else ""
                 
@@ -322,7 +359,7 @@ def run_scraper():
         finally:
             browser.close()
 
-    # XUẤT FILE M3U PLAYLIST
+    # --- XUẤT FILE M3U PLAYLIST ---
     with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
         f.write('#EXTM3U tvg-shift="0"\n\n')
 
@@ -339,7 +376,7 @@ def run_scraper():
             f.write(f'#EXTVLCOPT:http-referrer={BASE_URL}/\n')
             f.write(f'{stream_url}\n\n')
 
-    print(f"[SUCCESS] Đã ghi thành công {len(final_matches)} trận đấu vào file {OUTPUT_FILE}!")
+    print(f"[HOÀN THÀNH] Đã ghi thành công {len(final_matches)} trận đấu vào file {OUTPUT_FILE}!")
 
 if __name__ == "__main__":
     run_scraper()
