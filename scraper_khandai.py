@@ -12,9 +12,12 @@ WORKER_DOMAIN = "chuoi-chien-iptv.sonnguyen90pro.workers.dev"
 OUTPUT_FILE = "khandai.m3u"
 GROUP_NAME = "Khán Đài TV"
 
+# Bổ sung thêm các domain dự phòng thường dùng của Khán Đài
 DOMAINS = [
     "https://khandai1.link",
     "https://khandai.tv",
+    "https://khandai.live",
+    "https://khandai.net",
     "https://khandai2.link",
     "https://khandai3.link"
 ]
@@ -37,22 +40,28 @@ HEADERS = {
 }
 
 def fetch_page(target_url: str) -> str:
+    print(f"[*] Đang thử truy cập: {target_url}")
     # 1. Thử tải trực tiếp
     try:
         res = requests.get(target_url, headers=HEADERS, timeout=10)
+        print(f"  -> Trực tiếp HTTP Status: {res.status_code}")
         if res.status_code == 200 and len(res.text) > 500 and "Just a moment" not in res.text:
             return res.text
-    except Exception:
-        pass
+        elif "Just a moment" in res.text:
+            print("  -> Bị Cloudflare chặn hiển thị trang chờ.")
+    except Exception as e:
+        print(f"  -> Lỗi kết nối trực tiếp: {e}")
 
-    # 2. Thử tải qua Worker Proxy
+    # 2. Thử tải qua Worker Proxy (Vượt IP GitHub Actions)
+    proxy_url = f"https://{WORKER_DOMAIN}/proxy?url={quote(target_url, safe='')}"
+    print(f"[*] Đang thử qua Proxy Worker...")
     try:
-        proxy_url = f"https://{WORKER_DOMAIN}/proxy?url={quote(target_url, safe='')}"
         res = requests.get(proxy_url, headers=HEADERS, timeout=12)
+        print(f"  -> Proxy HTTP Status: {res.status_code}")
         if res.status_code == 200 and len(res.text) > 500 and "Just a moment" not in res.text:
             return res.text
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"  -> Lỗi kết nối Proxy: {e}")
 
     return ""
 
@@ -78,17 +87,12 @@ def detect_sport_icon(text: str) -> str:
 def parse_time_and_date(text: str, default_date: str):
     extracted_time = "00:00"
     extracted_date = default_date
-
-    # Tìm giờ HH:MM
     t_match = re.search(r'\b(2[0-3]|[0-1]?\d)[:h](\d{2})\b', text, re.IGNORECASE)
     if t_match:
         extracted_time = f"{t_match.group(1).zfill(2)}:{t_match.group(2)}"
-
-    # Tìm ngày DD-MM hoặc DD/MM
     d_match = re.search(r'\b(\d{1,2})[/.-](\d{1,2})\b', text)
     if d_match:
         extracted_date = f"{d_match.group(1).zfill(2)}/{d_match.group(2).zfill(2)}"
-
     return extracted_time, extracted_date
 
 def parse_datetime_obj(date_str: str, time_str: str, vn_tz) -> datetime:
@@ -107,38 +111,33 @@ def run_scraper():
     vn_tz = timezone(timedelta(hours=7))
     today_str = datetime.now(vn_tz).strftime("%d/%m")
     
-    # Khởi tạo tạo file M3U ngay lập tức
-    with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
-        f.write('#EXTM3U tvg-shift="0"\n\n')
-
     html_content = ""
     working_domain = ""
 
-    print("[*] Đang kết nối tới Khán Đài TV...")
+    print("=== BẮT ĐẦU QUÉT DỮ LIỆU KHÁN ĐÀI TV ===")
     for domain in DOMAINS:
         html = fetch_page(domain)
         if html:
             html_content = html
             working_domain = domain
-            print(f"[+] Lấy dữ liệu thành công từ: {domain}")
+            print(f"[+] Lấy HTML thành công từ: {domain}")
             break
 
     if not html_content:
-        print("[!] Không thể tải dữ liệu trang chủ.")
-        return
+        print("[!] TẤT CẢ CÁC DOMAIN ĐỀU THẤT BẠI HOẶC BỊ CHẶN.")
+        print("[!] Script sẽ dừng lại để bảo vệ file M3U cũ không bị xóa trắng.")
+        sys.exit(1) # Báo lỗi cho GitHub Actions biết để bôi đỏ log
 
     soup = BeautifulSoup(html_content, 'html.parser')
     matches_data = []
     seen_urls = set()
 
-    # 1. Ưu tiên bóc tách từ Next.js JSON (__NEXT_DATA__)
+    # 1. Quét JSON
     next_data_tag = soup.find('script', id='__NEXT_DATA__')
     if next_data_tag and next_data_tag.string:
         try:
             data = json.loads(next_data_tag.string)
             page_props = data.get('props', {}).get('pageProps', {})
-            
-            # Tìm danh sách trận đấu trong JSON
             match_list = page_props.get('matches', []) or page_props.get('data', []) or page_props.get('liveMatches', [])
             
             for item in match_list:
@@ -146,8 +145,7 @@ def run_scraper():
                     slug = item.get('slug', '') or item.get('id', '')
                     match_url = urljoin(working_domain, f"/truc-tiep/{slug}" if not slug.startswith('http') else slug)
                     
-                    if match_url in seen_urls:
-                        continue
+                    if match_url in seen_urls: continue
                     seen_urls.add(match_url)
 
                     home = item.get('homeTeam', {}).get('name', '') or item.get('home_name', '')
@@ -155,102 +153,78 @@ def run_scraper():
                     teams = f"{home} vs {away}" if home and away else item.get('title', 'Trận đấu Trực Tiếp')
                     
                     blv = item.get('commentator', '') or item.get('blv', '') or item.get('caster', '')
-                    sport = item.get('sport', '') or item.get('category', '')
                     status = str(item.get('status', ''))
                     is_live = any(k in status.lower() for k in ['live', '1', '2', 'trực tiếp']) or item.get('isLive', False)
                     
-                    time_str = item.get('time', '00:00')
-                    date_str = item.get('date', today_str)
-
                     matches_data.append({
-                        "url": match_url,
-                        "teams": teams,
-                        "blv": blv,
-                        "sport": sport,
-                        "is_live": is_live,
-                        "time": time_str,
-                        "date": date_str
+                        "url": match_url, "teams": teams, "blv": blv,
+                        "sport": item.get('sport', ''), "is_live": is_live,
+                        "time": item.get('time', '00:00'), "date": item.get('date', today_str)
                     })
         except Exception as e:
-            print(f"[-] Không thể đọc JSON __NEXT_DATA__: {e}")
+            print(f"[-] Lỗi đọc JSON: {e}")
 
-    # 2. Bóc tách HTML dự phòng nếu JSON trống
+    # 2. Quét HTML dự phòng
     if not matches_data:
         for a in soup.find_all('a', href=True):
             href = a['href']
             if '/truc-tiep/' in href or '-vs-' in href:
                 full_url = urljoin(working_domain, href)
-                if full_url in seen_urls or full_url == working_domain + '/':
-                    continue
+                if full_url in seen_urls or full_url == working_domain + '/': continue
                 seen_urls.add(full_url)
 
                 text = a.get_text(separator=' ', strip=True)
-                if a.parent:
-                    text += " " + a.parent.get_text(separator=' ', strip=True)
+                if a.parent: text += " " + a.parent.get_text(separator=' ', strip=True)
 
                 time_str, date_str = parse_time_and_date(text, today_str)
                 is_live = any(k in text.lower() for k in ["trực tiếp", "hiệp", "'", "live"])
                 
-                # Tìm tên BLV
                 blv_match = re.search(r'(?:BLV|Caster)\s*([A-Za- me0-9_À-ỹ]+)', text, re.IGNORECASE)
-                blv_name = blv_match.group(1) if blv_match else ""
-
-                # Tìm tên hai đội từ slug URL
-                slug_match = re.search(r'/([^/?#]+-vs-[^/?#]+)', href)
                 teams_name = "Trận đấu Trực Tiếp"
+                slug_match = re.search(r'/([^/?#]+-vs-[^/?#]+)', href)
                 if slug_match:
                     parts = slug_match.group(1).split('-vs-')
                     if len(parts) == 2:
-                        t1 = " ".join([w.capitalize() for w in parts[0].split('-') if w])
-                        t2 = " ".join([w.capitalize() for w in parts[1].split('-') if w])
-                        teams_name = f"{t1} vs {t2}"
+                        teams_name = f"{' '.join(parts[0].split('-')).title()} vs {' '.join(parts[1].split('-')).title()}"
 
                 matches_data.append({
-                    "url": full_url,
-                    "teams": teams_name,
-                    "blv": blv_name,
-                    "sport": text,
-                    "is_live": is_live,
-                    "time": time_str,
-                    "date": date_str
+                    "url": full_url, "teams": teams_name,
+                    "blv": blv_match.group(1) if blv_match else "",
+                    "sport": text, "is_live": is_live,
+                    "time": time_str, "date": date_str
                 })
 
-    print(f"[*] Tổng số trận đấu bóc tách được: {len(matches_data)}")
+    print(f"[*] Tìm thấy {len(matches_data)} trận đấu. Đang tạo link m3u8...")
+    
+    if not matches_data:
+        print("[!] Đọc được HTML nhưng không có trận nào. Giữ nguyên file cũ.")
+        sys.exit(1)
 
     parsed_items = []
     for item in matches_data:
-        url = item['url']
-        # Tải trang chi tiết để quét luồng m3u8
-        sub_html = fetch_page(url)
+        sub_html = fetch_page(item['url'])
         m3u8_matches = re.findall(r'https?://[^\s"\'<>]+\.m3u8[^\s"\'<>]*', sub_html) if sub_html else []
         m3u8_url = m3u8_matches[0] if m3u8_matches else ""
 
         is_currently_live = item['is_live'] or bool(m3u8_url)
-        sport_icon = detect_sport_icon(item['sport'])
-        logo = get_team_logo_url(item['teams'])
-
         live_prefix = "🟢 " if is_currently_live else ""
         blv_suffix = f" (BLV {item['blv'].title()})" if item['blv'] else ""
         
-        full_title = f"{live_prefix}{item['time']} {item['date']} {sport_icon} {item['teams']}{blv_suffix} [hls]".strip()
-        dt_obj = parse_datetime_obj(item['date'], item['time'], vn_tz)
+        full_title = f"{live_prefix}{item['time']} {item['date']} {detect_sport_icon(item['sport'])} {item['teams']}{blv_suffix} [hls]".strip()
 
         parsed_items.append({
             "title": full_title,
-            "logo": logo,
-            "url": url,
+            "logo": get_team_logo_url(item['teams']),
+            "url": item['url'],
             "m3u8_url": m3u8_url,
             "is_live": is_currently_live,
-            "dt": dt_obj
+            "dt": parse_datetime_obj(item['date'], item['time'], vn_tz)
         })
 
-    # Sắp xếp theo thứ tự: Trận đang đá -> Ngày -> Giờ
     parsed_items.sort(key=lambda x: (x['dt'].date(), not x['is_live'], x['dt'].time()))
 
-    # Lọc trùng tiêu đề kênh (SV1, SV2)
-    final_matches = []
-    title_tracker = {}
-
+    # Lọc trùng kênh
+    final_matches, title_tracker = [], {}
     for p_item in parsed_items:
         raw_title = p_item['title']
         if raw_title in title_tracker:
@@ -260,23 +234,18 @@ def run_scraper():
             title_tracker[raw_title] = 1
         final_matches.append(p_item)
 
-    # Ghi danh sách hoàn chỉnh vào file M3U
+    # GHI FILE: Chỉ tạo file khi thực sự có dữ liệu
+    print(f"[*] Tiến hành ghi {len(final_matches)} kênh vào {OUTPUT_FILE}...")
     with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
         f.write('#EXTM3U tvg-shift="0"\n\n')
         for item in final_matches:
-            logo_attr = f'tvg-logo="{item["logo"]}"'
-            
-            if item.get('m3u8_url'):
-                stream_url = f"https://{WORKER_DOMAIN}/proxy?url={quote(item['m3u8_url'], safe='')}"
-            else:
-                stream_url = f"https://{WORKER_DOMAIN}/live?url={quote(item['url'], safe='')}"
-            
-            f.write(f'#EXTINF:-1 {logo_attr} group-title="{GROUP_NAME}",{item["title"]}\n')
+            stream_url = f"https://{WORKER_DOMAIN}/proxy?url={quote(item['m3u8_url'], safe='')}" if item.get('m3u8_url') else f"https://{WORKER_DOMAIN}/live?url={quote(item['url'], safe='')}"
+            f.write(f'#EXTINF:-1 tvg-logo="{item["logo"]}" group-title="{GROUP_NAME}",{item["title"]}\n')
             f.write(f'#EXTVLCOPT:http-user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36\n')
             f.write(f'#EXTVLCOPT:http-referrer={working_domain}/\n')
             f.write(f'{stream_url}\n\n')
 
-    print(f"[HOÀN THÀNH] Đã cập nhật thành công {len(final_matches)} kênh vào file {OUTPUT_FILE}")
+    print("[HOÀN THÀNH] Đã xuất file thành công!")
 
 if __name__ == "__main__":
     run_scraper()
