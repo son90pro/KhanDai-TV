@@ -5,11 +5,6 @@
 #EXTVLCOPT:http-referrer=https://khandai1.link/
 https://chuoi-chien-iptv.sonnguyen90pro.workers.dev/live?url=https%3A%2F%2Fkhandai1.link%2Ftruc-tiep%2Fcolumbus-crew-vs-inter-miami-28-09-2026-711691
 
-#EXTINF:-1 tvg-logo="https://ui-avatars.com/api/?name=ADH&background=random&color=fff&size=256&bold=true&length=3" group-title="Khán Đài TV",⚪ 06:00 28/09 🏐 An Do vs Hong Kong
-#EXTVLCOPT:http-user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36
-#EXTVLCOPT:http-referrer=https://khandai1.link/
-https://chuoi-chien-iptv.sonnguyen90pro.workers.dev/live?url=https%3A%2F%2Fkhandai1.link%2Ftruc-tiep%2Fan-do-vs-hong-kong
-
 #EXTINF:-1 tvg-logo="https://flagcdn.com/w320/id.png" group-title="Khán Đài TV",⚪ 06:00 28/09 🏐 Indonesia vs Kyrgyzstan
 #EXTVLCOPT:http-user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36
 #EXTVLCOPT:http-referrer=https://khandai1.link/
@@ -44,4 +39,9 @@ https://chuoi-chien-iptv.sonnguyen90pro.workers.dev/live?url=https%3A%2F%2Fkhand
 #EXTVLCOPT:http-user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36
 #EXTVLCOPT:http-referrer=https://khandai1.link/
 https://chuoi-chien-iptv.sonnguyen90pro.workers.dev/live?url=https%3A%2F%2Fkhandai1.link%2Ftruc-tiep%2Fnhat-ban-vs-kazakhstan
+
+#EXTINF:-1 tvg-logo="https://flagcdn.com/w320/jp.png" group-title="Khán Đài TV",⚪ 06:00 28/09 🏐 Japan vs Venezuela
+#EXTVLCOPT:http-user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36
+#EXTVLCOPT:http-referrer=https://khandai1.link/
+https://chuoi-chien-iptv.sonnguyen90pro.workers.dev/live?url=https%3A%2F%2Fkhandai1.link%2Ftruc-tiep%2Fjapan-vs-venezuela-28-09-2026-841685
 
