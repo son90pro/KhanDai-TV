@@ -1,47 +1,47 @@
 #EXTM3U tvg-shift="0"
 
-#EXTINF:-1 tvg-logo="https://flagcdn.com/w320/ph.png" group-title="Khán Đài TV",⚪ 11:00 28/09 🏐 Trung Quoc vs Philippines
-#EXTVLCOPT:http-user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36
-#EXTVLCOPT:http-referrer=https://khandai1.link/
-https://chuoi-chien-iptv.sonnguyen90pro.workers.dev/live?url=https%3A%2F%2Fkhandai1.link%2Ftruc-tiep%2Ftrung-quoc-vs-philippines
-
-#EXTINF:-1 tvg-logo="https://ui-avatars.com/api/?name=TLI&background=random&color=fff&size=256&bold=true&length=3" group-title="Khán Đài TV",⚪ 11:00 28/09 🏐 Thai Lan vs Iran
-#EXTVLCOPT:http-user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36
-#EXTVLCOPT:http-referrer=https://khandai1.link/
-https://chuoi-chien-iptv.sonnguyen90pro.workers.dev/live?url=https%3A%2F%2Fkhandai1.link%2Ftruc-tiep%2Fthai-lan-vs-iran
-
-#EXTINF:-1 tvg-logo="https://ui-avatars.com/api/?name=VNQ&background=random&color=fff&size=256&bold=true&length=3" group-title="Khán Đài TV",⚪ 11:00 28/09 🏐 Viet Nam vs Qatar
-#EXTVLCOPT:http-user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36
-#EXTVLCOPT:http-referrer=https://khandai1.link/
-https://chuoi-chien-iptv.sonnguyen90pro.workers.dev/live?url=https%3A%2F%2Fkhandai1.link%2Ftruc-tiep%2Fviet-nam-vs-qatar
-
-#EXTINF:-1 tvg-logo="https://flagcdn.com/w320/sg.png" group-title="Khán Đài TV",⚪ 11:00 28/09 🏐 Singapore vs Bangladesh
+#EXTINF:-1 tvg-logo="https://flagcdn.com/w320/sg.png" group-title="Khán Đài TV",⚪ 16:00 28/09 🏐 Singapore vs Bangladesh
 #EXTVLCOPT:http-user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36
 #EXTVLCOPT:http-referrer=https://khandai1.link/
 https://chuoi-chien-iptv.sonnguyen90pro.workers.dev/live?url=https%3A%2F%2Fkhandai1.link%2Ftruc-tiep%2Fsingapore-vs-bangladesh-28-09-2026-858999
 
-#EXTINF:-1 tvg-logo="https://ui-avatars.com/api/?name=DLH&background=random&color=fff&size=256&bold=true&length=3" group-title="Khán Đài TV",⚪ 11:00 28/09 🏐 Dai Loan vs Han Quoc
+#EXTINF:-1 tvg-logo="https://ui-avatars.com/api/?name=DLH&background=random&color=fff&size=256&bold=true&length=3" group-title="Khán Đài TV",⚪ 16:00 28/09 🏐 Dai Loan vs Han Quoc
 #EXTVLCOPT:http-user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36
 #EXTVLCOPT:http-referrer=https://khandai1.link/
 https://chuoi-chien-iptv.sonnguyen90pro.workers.dev/live?url=https%3A%2F%2Fkhandai1.link%2Ftruc-tiep%2Fdai-loan-vs-han-quoc
 
-#EXTINF:-1 tvg-logo="https://ui-avatars.com/api/?name=NBK&background=random&color=fff&size=256&bold=true&length=3" group-title="Khán Đài TV",⚪ 11:00 28/09 🏐 Nhat Ban vs Kazakhstan
+#EXTINF:-1 tvg-logo="https://ui-avatars.com/api/?name=NBK&background=random&color=fff&size=256&bold=true&length=3" group-title="Khán Đài TV",⚪ 16:00 28/09 🏐 Nhat Ban vs Kazakhstan
 #EXTVLCOPT:http-user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36
 #EXTVLCOPT:http-referrer=https://khandai1.link/
 https://chuoi-chien-iptv.sonnguyen90pro.workers.dev/live?url=https%3A%2F%2Fkhandai1.link%2Ftruc-tiep%2Fnhat-ban-vs-kazakhstan
 
-#EXTINF:-1 tvg-logo="https://flagcdn.com/w320/jp.png" group-title="Khán Đài TV",⚪ 11:00 28/09 🏐 Japan vs Venezuela
+#EXTINF:-1 tvg-logo="https://flagcdn.com/w320/jp.png" group-title="Khán Đài TV",⚪ 16:00 28/09 🏐 Japan vs Venezuela
 #EXTVLCOPT:http-user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36
 #EXTVLCOPT:http-referrer=https://khandai1.link/
 https://chuoi-chien-iptv.sonnguyen90pro.workers.dev/live?url=https%3A%2F%2Fkhandai1.link%2Ftruc-tiep%2Fjapan-vs-venezuela-28-09-2026-841685
 
-#EXTINF:-1 tvg-logo="https://flagcdn.com/w320/kr.png" group-title="Khán Đài TV",⚪ 11:00 28/09 🏐 South Korea vs Uruguay
+#EXTINF:-1 tvg-logo="https://flagcdn.com/w320/kr.png" group-title="Khán Đài TV",⚪ 16:00 28/09 🏐 South Korea vs Uruguay
 #EXTVLCOPT:http-user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36
 #EXTVLCOPT:http-referrer=https://khandai1.link/
 https://chuoi-chien-iptv.sonnguyen90pro.workers.dev/live?url=https%3A%2F%2Fkhandai1.link%2Ftruc-tiep%2Fsouth-korea-vs-uruguay-28-09-2026-841684
 
-#EXTINF:-1 tvg-logo="https://flagcdn.com/w320/id.png" group-title="Khán Đài TV",⚪ 11:00 28/09 🏐 Indonesia vs Malaysia
+#EXTINF:-1 tvg-logo="https://flagcdn.com/w320/id.png" group-title="Khán Đài TV",⚪ 16:00 28/09 🏐 Indonesia vs Malaysia
 #EXTVLCOPT:http-user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36
 #EXTVLCOPT:http-referrer=https://khandai1.link/
 https://chuoi-chien-iptv.sonnguyen90pro.workers.dev/live?url=https%3A%2F%2Fkhandai1.link%2Ftruc-tiep%2Findonesia-vs-malaysia-28-09-2026-859000
+
+#EXTINF:-1 tvg-logo="https://ui-avatars.com/api/?name=GU&background=random&color=fff&size=256&bold=true&length=3" group-title="Khán Đài TV",⚪ 16:00 28/09 🏐 Georgia vs Ukraine
+#EXTVLCOPT:http-user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36
+#EXTVLCOPT:http-referrer=https://khandai1.link/
+https://chuoi-chien-iptv.sonnguyen90pro.workers.dev/live?url=https%3A%2F%2Fkhandai1.link%2Ftruc-tiep%2Fgeorgia-vs-ukraine-28-09-2026-790834
+
+#EXTINF:-1 tvg-logo="https://ui-avatars.com/api/?name=AM&background=random&color=fff&size=256&bold=true&length=3" group-title="Khán Đài TV",⚪ 16:00 28/09 🏐 Armenia vs Montenegro
+#EXTVLCOPT:http-user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36
+#EXTVLCOPT:http-referrer=https://khandai1.link/
+https://chuoi-chien-iptv.sonnguyen90pro.workers.dev/live?url=https%3A%2F%2Fkhandai1.link%2Ftruc-tiep%2Farmenia-vs-montenegro-28-09-2026-790928
+
+#EXTINF:-1 tvg-logo="https://ui-avatars.com/api/?name=LC&background=random&color=fff&size=256&bold=true&length=3" group-title="Khán Đài TV",⚪ 16:00 28/09 🏐 Latvia vs Cyprus
+#EXTVLCOPT:http-user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36
+#EXTVLCOPT:http-referrer=https://khandai1.link/
+https://chuoi-chien-iptv.sonnguyen90pro.workers.dev/live?url=https%3A%2F%2Fkhandai1.link%2Ftruc-tiep%2Flatvia-vs-cyprus-28-09-2026-790929
 
