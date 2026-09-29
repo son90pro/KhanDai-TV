@@ -7,7 +7,9 @@ from playwright.sync_api import sync_playwright
 DOMAINS = [
     "https://khandai1.link/",
     "https://khandai2.link/",
-    "https://khandai3.link/"
+    "https://khandai3.link/",
+    "https://khandaitv.com/",
+    "https://khandai.tv/"
 ]
 REFERER_URL = "https://khandai1.link/"
 OUTPUT_FILE = "playlist.m3u"
@@ -117,8 +119,8 @@ def scrape_match_detail(context, match_url: str, card_blv: str = ""):
 
     try:
         print(f"  [->] Đang bóc tách luồng: {match_url}")
-        page.goto(match_url, timeout=20000, wait_until="domcontentloaded")
-        time.sleep(2.5)
+        page.goto(match_url, timeout=25000, wait_until="domcontentloaded")
+        time.sleep(3)
 
         detail_data = page.evaluate('''() => {
             let t1 = '', t2 = '', blv = '', timeStr = '', dateStr = '';
@@ -173,7 +175,7 @@ def scrape_match_detail(context, match_url: str, card_blv: str = ""):
                 before_len = len(m3u8_history)
                 try:
                     btn.click()
-                    time.sleep(1)
+                    time.sleep(1.2)
                     if len(m3u8_history) > before_len:
                         captured_streams.append((label, m3u8_history[-1]))
                     elif m3u8_history:
@@ -201,56 +203,78 @@ def run_scraper():
     vn_tz = timezone(timedelta(hours=7))
     today_str = datetime.now(vn_tz).strftime("%d/%m")
     all_extracted_matches = {}
-    parsed_items = []  # Khai báo trước để tránh lỗi UnboundLocalError
+    parsed_items = []
 
-    print(f"[*] Khởi tạo công cụ cào dữ liệu Khán Đài TV trên GitHub Actions...")
+    print(f"[*] Khởi tạo công cụ cào dữ liệu Khán Đài TV (Bypass Cloudflare Mode)...")
 
     try:
         with sync_playwright() as p:
-            # CHÚ Ý: Đổi headless=True để tương thích với Server GitHub Actions
             browser = p.chromium.launch(
                 headless=True,
                 args=[
                     "--disable-blink-features=AutomationControlled",
                     "--no-sandbox",
                     "--disable-setuid-sandbox",
-                    "--disable-dev-shm-usage"
+                    "--disable-dev-shm-usage",
+                    "--disable-web-security"
                 ]
             )
             context = browser.new_context(
                 user_agent=USER_AGENT,
-                viewport={"width": 1280, "height": 720},
+                viewport={"width": 1920, "height": 1080},
                 timezone_id="Asia/Ho_Chi_Minh",
                 locale="vi-VN"
             )
+
+            # SCRIPT STEALTH: Xóa nhận diện bot của Playwright đối với Cloudflare
+            context.add_init_script("""
+                Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
+                window.chrome = { runtime: {} };
+                Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3, 4, 5] });
+                Object.defineProperty(navigator, 'languages', { get: () => ['vi-VN', 'vi', 'en-US', 'en'] });
+            """)
 
             connected = False
             for base_url in DOMAINS:
                 print(f"[*] Đang thử kết nối: {base_url}")
                 try:
                     page = context.new_page()
-                    page.goto(base_url, timeout=30000, wait_until="domcontentloaded")
+                    page.goto(base_url, timeout=35000, wait_until="domcontentloaded")
                     time.sleep(3)
 
-                    for _ in range(5):
-                        page.evaluate("window.scrollBy(0, 1000)")
+                    # Kiểm tra Cloudflare Challenge
+                    page_title = page.title().lower()
+                    if "just a moment" in page_title or "cloudflare" in page_title or "attention required" in page_title:
+                        print("  [!] Phát hiện Cloudflare Challenge! Đang đợi 8 giây để tự vượt qua...")
+                        time.sleep(8)
+
+                    # Cuộn trang để kích hoạt Lazy Load
+                    for _ in range(6):
+                        page.evaluate("window.scrollBy(0, 800)")
                         time.sleep(0.4)
 
+                    # Cách 1: Quét bằng JavaScript DOM
                     extracted = page.evaluate('''() => {
                         const results = [];
-                        const elements = document.querySelectorAll('a[href], div[class*="match"], div[class*="card"]');
+                        const elements = document.querySelectorAll('a, div, li, article');
 
                         elements.forEach(el => {
-                            let href = el.getAttribute('href') || el.getAttribute('data-href') || '';
+                            let href = el.getAttribute('href') || el.getAttribute('data-href') || el.getAttribute('onclick') || '';
                             if (!href) {
                                 const parentA = el.closest('a');
                                 if (parentA) href = parentA.getAttribute('href') || '';
                             }
-                            if (!href || href === '#' || href.startsWith('javascript:')) return;
+                            if (!href) return;
 
-                            const fullUrl = href.startsWith('http') ? href : window.location.origin + href;
+                            const matchHref = href.match(/(https?:\\/\\/[^"']+|\\/[a-zA-Z0-9_-]+)/);
+                            if (!matchHref) return;
+
+                            let cleanUrl = matchHref[0];
+                            if (cleanUrl.startsWith('javascript:') || cleanUrl === '#') return;
+                            
+                            const fullUrl = cleanUrl.startsWith('http') ? cleanUrl : window.location.origin + cleanUrl;
                             const text = el.innerText || '';
-                            if (!text || text.length < 5) return;
+                            if (!text || text.length < 4) return;
 
                             let logoUrl = '';
                             const img = el.querySelector('img');
@@ -265,13 +289,23 @@ def run_scraper():
                         return results;
                     }''')
 
+                    # Cách 2: Cào dự phòng bằng Regex nếu DOM trả về rỗng
+                    if not extracted:
+                        html_content = page.content()
+                        raw_urls = re.findall(r'href=["\'](/[^"\']+|https?://[^"\']+)["\']', html_content)
+                        for u in raw_urls:
+                            if any(x in u for x in [".css", ".js", ".png", ".jpg", ".ico", "javascript"]):
+                                continue
+                            full_u = u if u.startswith("http") else base_url.rstrip('/') + u
+                            extracted.append({"url": full_u, "rawText": "Bóng đá Trực Tiếp", "logo": ""})
+
                     for item in extracted:
                         all_extracted_matches[item['url']] = item
 
                     page.close()
 
                     if len(all_extracted_matches) > 0:
-                        print(f"[+] Kết nối thành công! Đã quét thấy {len(all_extracted_matches)} mục trận đấu.")
+                        print(f"[+] Kết nối thành công! Đã tìm thấy {len(all_extracted_matches)} đường dẫn liên quan.")
                         connected = True
                         break
                 except Exception as err:
@@ -280,7 +314,7 @@ def run_scraper():
             raw_matches = list(all_extracted_matches.values())
 
             if raw_matches:
-                print(f"\n[*] Đang tiến hành bóc tách chi tiết từng trận...")
+                print(f"\n[*] Đang bóc tách chi tiết từng trận...")
                 for item in raw_matches:
                     match_url = item['url']
                     card_text = sanitize_text(item['rawText'])
@@ -314,7 +348,7 @@ def run_scraper():
                     match_date = date_from_page
                     if not match_date:
                         date_m = re.search(r'\b(\d{1,2})[/.-](\d{1,2})\b', card_text)
-                        match_date = f"{date_m.group(1).zfill(2)}/{date_m.group(2).zfill(2)}" if match_date else today_str
+                        match_date = f"{date_m.group(1).zfill(2)}/{date_m.group(2).zfill(2)}" if date_m else today_str
 
                     card_logo = get_team_logo(teams_title, item['logo'])
 
@@ -344,7 +378,7 @@ def run_scraper():
     except Exception as e:
         print(f"[!] Lỗi hệ thống Playwright: {e}")
 
-    # Ghi xuất kết quả ra file playlist.m3u (Luôn chạy để tạo file không bị lỗi step tiếp theo)
+    # Ghi xuất kết quả ra file playlist.m3u
     parsed_items.sort(key=lambda x: x['dt'])
     with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
         f.write('#EXTM3U\n\n')
