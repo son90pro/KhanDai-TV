@@ -48,7 +48,7 @@ def sanitize_text(text: str) -> str:
 def is_ad_or_junk(text: str) -> bool:
     if not text:
         return True
-    if re.search(r'[\u0e00-\u0e7f]', text):  # Chữ Thái Lan
+    if re.search(r'[\u0e00-\u0e7f]', text):
         return True
     
     strict_junk = [
@@ -58,6 +58,35 @@ def is_ad_or_junk(text: str) -> bool:
     ]
     t_lower = text.lower()
     return any(j in t_lower for j in strict_junk)
+
+def parse_info_from_slug(url_path: str):
+    """Trích xuất tên 2 đội và ngày thi đấu trực tiếp từ URL slug"""
+    match = re.search(r'/truc-tiep/([^/?#]+)', url_path)
+    if not match:
+        return None, None
+    
+    slug = match.group(1)
+    # Loại bỏ ID trận đấu ở cuối (ví dụ: -859312)
+    slug_clean = re.sub(r'-\d+$', '', slug)
+    
+    # Trích xuất ngày nếu có trong slug (ví dụ: -30-09-2026 hoặc -30-09)
+    date_match = re.search(r'-(\d{1,2})[-_](\d{1,2})(?:[-_]\d{2,4})?$', slug_clean)
+    extracted_date = None
+    if date_match:
+        d, m = date_match.group(1).zfill(2), date_match.group(2).zfill(2)
+        extracted_date = f"{d}/{m}"
+        slug_clean = slug_clean[:date_match.start()]
+        
+    # Chuẩn hóa tên hai đội
+    parts = slug_clean.split('-vs-')
+    if len(parts) == 2:
+        team1 = ' '.join([w.capitalize() for w in parts[0].split('-')])
+        team2 = ' '.join([w.capitalize() for w in parts[1].split('-')])
+        teams_title = f"{team1} vs {team2}"
+    else:
+        teams_title = ' '.join([w.capitalize() for w in slug_clean.split('-')])
+        
+    return teams_title, extracted_date
 
 def get_best_logo(teams_str: str, raw_logo: str = "") -> str:
     if raw_logo and raw_logo.startswith("http") and not any(x in raw_logo for x in ["default", "logo.png", "fire.svg", "banner"]):
@@ -114,14 +143,14 @@ def run_scraper():
         target_page = None
         working_domain = ""
 
-        # 1. Kết nối Domain & Vượt Cloudflare chính xác
+        # 1. Kết nối Domain
         for domain in DOMAINS:
             print(f"[*] Thử kết nối: {domain}")
             try:
                 page = context.new_page()
                 page.goto(domain, timeout=35000, wait_until="domcontentloaded")
                 
-                # Chờ Cloudflare tự vượt (tối đa 15 giây)
+                # Chờ Cloudflare tự vượt
                 for _ in range(5):
                     title = page.title().lower()
                     if "just a moment" in title or "checking your browser" in title or "cloudflare" in title:
@@ -130,9 +159,14 @@ def run_scraper():
                     else:
                         break
                 
-                # Kiểm tra chắc chắn đã vào trang web thực tế
+                # Chờ thẻ trận đấu xuất hiện trong DOM
+                try:
+                    page.wait_for_selector('a[href*="/truc-tiep/"]', timeout=15000)
+                except Exception:
+                    pass
+
                 content_text = page.content().lower()
-                if "khán đài" in page.title().lower() or "trực tiếp" in content_text or "bóng đá" in content_text:
+                if "khán đài" in page.title().lower() or "/truc-tiep/" in content_text or "bóng đá" in content_text:
                     print(f"[✔] Kết nối thành công domain: {domain}")
                     target_page = page
                     working_domain = domain
@@ -147,26 +181,25 @@ def run_scraper():
             browser.close()
             return
 
-        # 2. Cuộn trang và chờ JavaScript nạp AJAX đầy đủ
-        print("[*] Đang nạp danh sách trận đấu...")
-        for _ in range(4):
+        # 2. Cuộn trang để nạp toàn bộ danh sách trận đấu
+        for _ in range(3):
             target_page.evaluate("window.scrollBy(0, 1000)")
-            time.sleep(1.5)
+            time.sleep(1)
 
-        # 3. Quét toàn bộ liên kết trên trang (Rộng hơn để không bỏ sót)
+        # 3. Quét chính xác các liên kết chứa "/truc-tiep/"
         raw_matches = target_page.evaluate('''() => {
             const results = [];
-            const links = document.querySelectorAll('a');
+            const links = document.querySelectorAll('a[href*="/truc-tiep/"]');
             
             links.forEach(a => {
                 const href = a.getAttribute('href') || '';
-                const text = (a.innerText || a.textContent || '').trim();
-                
-                if (!href || href === '#' || href.startsWith('javascript:')) return;
-                // Lọc bỏ liên kết ngắn không phải trận đấu
-                if (text.length < 5) return;
+                if (!href) return;
 
-                let img = a.querySelector('img');
+                // Lấy toàn bộ văn bản của thẻ cha chứa thẻ a
+                const parent = a.closest('.match-item, .item, li, div') || a;
+                const text = (parent.innerText || a.innerText || '').trim();
+
+                let img = parent.querySelector('img') || a.querySelector('img');
                 let logo = img ? (img.getAttribute('src') || img.getAttribute('data-src') || '') : '';
 
                 results.push({ href: href, text: text, logo: logo });
@@ -174,25 +207,24 @@ def run_scraper():
             return results;
         }''')
 
-        print(f"[+] Thu thập được {len(raw_matches)} thẻ dữ liệu thô.")
+        print(f"[+] Thu thập được {len(raw_matches)} trận đấu thô.")
 
         # 4. Bóc tách & Chuẩn hóa dữ liệu trận đấu
         visited_urls = set()
         for match in raw_matches:
-            raw_text = sanitize_text(match['text'])
-            
-            if is_ad_or_junk(raw_text):
-                continue
-
-            # Chỉ xử lý nếu văn bản có chứa mốc thời gian (giờ:phút) hoặc từ khóa thi đấu
-            if not re.search(r'\d{1,2}[:h]\d{2}', raw_text) and not any(k in raw_text.lower() for k in ['vs', '-', 'vsl', 'trực tiếp']):
-                continue
-
             href = match['href']
             full_url = href if href.startswith('http') else working_domain.rstrip('/') + '/' + href.lstrip('/')
             
             if full_url in visited_urls:
                 continue
+
+            raw_text = sanitize_text(match['text'])
+            
+            if is_ad_or_junk(raw_text):
+                continue
+
+            # Lấy thông tin từ Slug làm phương án dự phòng
+            slug_teams, slug_date = parse_info_from_slug(full_url)
 
             # Trích xuất Giờ
             time_m = re.search(r'\b(2[0-3]|[0-1]?\d)[:h](\d{2})\b', raw_text)
@@ -200,9 +232,14 @@ def run_scraper():
 
             # Trích xuất Ngày
             date_m = re.search(r'\b(\d{1,2})[/.-](\d{1,2})\b', raw_text)
-            extracted_date = f"{date_m.group(1).zfill(2)}/{date_m.group(2).zfill(2)}" if date_m else today_str
+            if date_m:
+                extracted_date = f"{date_m.group(1).zfill(2)}/{date_m.group(2).zfill(2)}"
+            elif slug_date:
+                extracted_date = slug_date
+            else:
+                extracted_date = today_str
 
-            # Làm sạch tên hai đội bóng
+            # Làm sạch Tên Đội
             clean_text = re.sub(r'vào lúc\s*\d{1,2}[:h]\d{2}', '', raw_text, flags=re.I)
             clean_text = re.sub(r'\b\d{1,2}[:h]\d{2}\b', '', clean_text)
             clean_text = re.sub(r'\b\d{1,2}[/-]\d{1,2}\b', '', clean_text)
@@ -213,15 +250,18 @@ def run_scraper():
 
             clean_text = re.sub(r'\s+', ' ', clean_text).strip()
 
-            if len(clean_text) < 3:
+            # Ưu tiên lấy tên đội từ text, nếu quá ngắn thì dùng slug_teams
+            teams_title = clean_text if len(clean_text) >= 5 else slug_teams
+
+            if not teams_title or len(teams_title) < 3:
                 continue
 
             visited_urls.add(full_url)
 
             blv_name = extract_blv_name(raw_text)
-            logo_url = get_best_logo(clean_text, match['logo'])
+            logo_url = get_best_logo(teams_title, match['logo'])
 
-            full_title = f"{extracted_time} {extracted_date} ⚽ {clean_text} ({blv_name}) [hls]"
+            full_title = f"{extracted_time} {extracted_date} ⚽ {teams_title} ({blv_name}) [hls]"
 
             try:
                 d, m = map(int, extracted_date.split('/'))
