@@ -118,7 +118,7 @@ def scrape_match_detail(context, match_url: str, card_blv: str = ""):
     try:
         print(f"  [->] Đang bóc tách luồng: {match_url}")
         page.goto(match_url, timeout=20000, wait_until="domcontentloaded")
-        time.sleep(3) # Cho player tải m3u8
+        time.sleep(2.5)
 
         detail_data = page.evaluate('''() => {
             let t1 = '', t2 = '', blv = '', timeStr = '', dateStr = '';
@@ -157,7 +157,6 @@ def scrape_match_detail(context, match_url: str, card_blv: str = ""):
         match_time = sanitize_text(detail_data['time'])
         match_date = sanitize_text(detail_data['date'])
 
-        # Tìm các nút server (FHD, HD, SD...)
         server_buttons = page.query_selector_all('button, div, a')
         valid_buttons = []
         for btn in server_buttons:
@@ -174,7 +173,7 @@ def scrape_match_detail(context, match_url: str, card_blv: str = ""):
                 before_len = len(m3u8_history)
                 try:
                     btn.click()
-                    time.sleep(1.2)
+                    time.sleep(1)
                     if len(m3u8_history) > before_len:
                         captured_streams.append((label, m3u8_history[-1]))
                     elif m3u8_history:
@@ -202,15 +201,21 @@ def run_scraper():
     vn_tz = timezone(timedelta(hours=7))
     today_str = datetime.now(vn_tz).strftime("%d/%m")
     all_extracted_matches = {}
+    parsed_items = []  # Khai báo trước để tránh lỗi UnboundLocalError
 
-    print(f"[*] Khởi tạo công cụ cào dữ liệu Khán Đài TV...")
+    print(f"[*] Khởi tạo công cụ cào dữ liệu Khán Đài TV trên GitHub Actions...")
 
     try:
         with sync_playwright() as p:
-            # Tắt headless để tránh bị Cloudflare block ẩn
+            # CHÚ Ý: Đổi headless=True để tương thích với Server GitHub Actions
             browser = p.chromium.launch(
-                headless=False,
-                args=["--disable-blink-features=AutomationControlled", "--no-sandbox"]
+                headless=True,
+                args=[
+                    "--disable-blink-features=AutomationControlled",
+                    "--no-sandbox",
+                    "--disable-setuid-sandbox",
+                    "--disable-dev-shm-usage"
+                ]
             )
             context = browser.new_context(
                 user_agent=USER_AGENT,
@@ -224,17 +229,15 @@ def run_scraper():
                 print(f"[*] Đang thử kết nối: {base_url}")
                 try:
                     page = context.new_page()
-                    page.goto(base_url, timeout=30000, wait_until="networkidle")
+                    page.goto(base_url, timeout=30000, wait_until="domcontentloaded")
                     time.sleep(3)
 
-                    # Cuộn trang để load hết danh sách trận đấu
                     for _ in range(5):
                         page.evaluate("window.scrollBy(0, 1000)")
-                        time.sleep(0.5)
+                        time.sleep(0.4)
 
                     extracted = page.evaluate('''() => {
                         const results = [];
-                        // Quét tất cả thẻ a và các card trận đấu
                         const elements = document.querySelectorAll('a[href], div[class*="match"], div[class*="card"]');
 
                         elements.forEach(el => {
@@ -243,9 +246,9 @@ def run_scraper():
                                 const parentA = el.closest('a');
                                 if (parentA) href = parentA.getAttribute('href') || '';
                             }
-                            if (!href || href === '#' || href.startswith('javascript:')) return;
+                            if (!href || href === '#' || href.startsWith('javascript:')) return;
 
-                            const fullUrl = href.startswith('http') ? href : window.location.origin + href;
+                            const fullUrl = href.startsWith('http') ? href : window.location.origin + href;
                             const text = el.innerText || '';
                             if (!text || text.length < 5) return;
 
@@ -274,10 +277,6 @@ def run_scraper():
                 except Exception as err:
                     print(f"[!] Không thể cào {base_url}: {err}")
 
-            if not connected or not all_extracted_matches:
-                print("[!] KHÔNG TÌM THẤY TRẬN ĐẤU NÀO! Kiểm tra lại kết nối mạng hoặc trang web đang đổi cấu trúc.")
-
-            parsed_items = []
             raw_matches = list(all_extracted_matches.values())
 
             if raw_matches:
@@ -315,7 +314,7 @@ def run_scraper():
                     match_date = date_from_page
                     if not match_date:
                         date_m = re.search(r'\b(\d{1,2})[/.-](\d{1,2})\b', card_text)
-                        match_date = f"{date_m.group(1).zfill(2)}/{date_m.group(2).zfill(2)}" if date_m else today_str
+                        match_date = f"{date_m.group(1).zfill(2)}/{date_m.group(2).zfill(2)}" if match_date else today_str
 
                     card_logo = get_team_logo(teams_title, item['logo'])
 
@@ -330,7 +329,6 @@ def run_scraper():
                     if streams:
                         for server_label, stream_url in streams:
                             qual_tag = server_label.lower() if server_label.lower() in ["fhd", "hd", "sd"] else "hls"
-                            # Định dạng giao diện chuẩn IPTV mẫu
                             full_title = f"{extracted_time} {match_date} {sport_icon} {teams_title} ({blv_final}) [{qual_tag}]"
 
                             parsed_items.append({
@@ -346,7 +344,7 @@ def run_scraper():
     except Exception as e:
         print(f"[!] Lỗi hệ thống Playwright: {e}")
 
-    # Ghi xuất kết quả ra file playlist.m3u
+    # Ghi xuất kết quả ra file playlist.m3u (Luôn chạy để tạo file không bị lỗi step tiếp theo)
     parsed_items.sort(key=lambda x: x['dt'])
     with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
         f.write('#EXTM3U\n\n')
