@@ -8,8 +8,7 @@ DOMAINS = [
     "https://khandai1.link/",
     "https://khandai2.link/",
     "https://khandai3.link/",
-    "https://khandaitv.com/",
-    "https://khandai.tv/"
+    "https://khandaitv.com/"
 ]
 REFERER_URL = "https://khandai1.link/"
 OUTPUT_FILE = "playlist.m3u"
@@ -17,7 +16,11 @@ GROUP_NAME = "Khán Đài TV"
 USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"
 DEFAULT_LOGO = "https://flagcdn.com/w320/un.png"
 DEFAULT_BLV = "Khán Đài TV"
-KNOWN_BLVS = ["PHÁO THỦ", "ENZO", "KỀN KỀN", "CHIM NHỎ", "LÝ LINH LỰC", "LÝ LÊN LỬA", "NHÀ ĐÀI"]
+
+KNOWN_BLVS = [
+    "PHÁO THỦ", "ENZO", "KỀN KỀN", "CHIM NHỎ", "LÝ LINH LỰC", 
+    "LÝ LÊN LỬA", "NHÀ ĐÀI", "GẤU BÉO", "RỒNG ĐEN", "KHÁN ĐÀI"
+]
 
 COUNTRY_FLAGS = {
     "vietnam": "vn", "việt nam": "vn", "thailand": "th", "thái lan": "th",
@@ -42,7 +45,10 @@ def sanitize_text(text: str) -> str:
 def is_ad_or_junk(text: str) -> bool:
     if not text:
         return True
-    junk_keywords = ["nhà cái", "fb88", "cược", "trang chủ", "quảng cáo", "gmail.com", "top nhà cái", "lịch thi đấu", "sv368"]
+    junk_keywords = [
+        "nhà cái", "fb88", "cược", "trang chủ", "quảng cáo", "gmail.com", 
+        "top nhà cái", "lịch thi đấu", "sv368", "bảng xếp hạng", "tin tức", "khuyến mãi"
+    ]
     t_lower = text.lower()
     return any(k in t_lower for k in junk_keywords)
 
@@ -118,9 +124,9 @@ def scrape_match_detail(context, match_url: str, card_blv: str = ""):
     match_date = ""
 
     try:
-        print(f"  [->] Đang bóc tách luồng: {match_url}")
-        page.goto(match_url, timeout=25000, wait_until="domcontentloaded")
-        time.sleep(3)
+        print(f"  [->] Đang bắt luồng: {match_url}")
+        page.goto(match_url, timeout=20000, wait_until="domcontentloaded")
+        time.sleep(2)
 
         detail_data = page.evaluate('''() => {
             let t1 = '', t2 = '', blv = '', timeStr = '', dateStr = '';
@@ -159,39 +165,25 @@ def scrape_match_detail(context, match_url: str, card_blv: str = ""):
         match_time = sanitize_text(detail_data['time'])
         match_date = sanitize_text(detail_data['date'])
 
-        server_buttons = page.query_selector_all('button, div, a')
-        valid_buttons = []
+        # Tìm các nút chọn Server/Chất lượng luồng
+        server_buttons = page.query_selector_all('button, div.server, a.btn')
         for btn in server_buttons:
             try:
                 txt = btn.inner_text().strip()
                 if txt in ["FHD", "HD", "SD", "HD1", "HD2", "GEO", "Full HD"]:
-                    if txt not in [b[0] for b in valid_buttons]:
-                        valid_buttons.append((txt, btn))
+                    btn.click()
+                    time.sleep(1)
             except:
                 pass
 
-        if valid_buttons:
-            for label, btn in valid_buttons:
-                before_len = len(m3u8_history)
-                try:
-                    btn.click()
-                    time.sleep(1.2)
-                    if len(m3u8_history) > before_len:
-                        captured_streams.append((label, m3u8_history[-1]))
-                    elif m3u8_history:
-                        captured_streams.append((label, m3u8_history[-1]))
-                except Exception:
-                    pass
-        else:
-            if m3u8_history:
-                captured_streams.append(("hls", m3u8_history[-1]))
-
-        if not captured_streams and m3u8_history:
-            captured_streams.append(("hls", m3u8_history[-1]))
+        if m3u8_history:
+            for i, stream in enumerate(m3u8_history):
+                tag = "hls" if i == 0 else f"hd{i+1}"
+                captured_streams.append((tag, stream))
 
         page.close()
     except Exception as e:
-        print(f"  [!] Lỗi cào trang chi tiết: {e}")
+        print(f"  [!] Lỗi bóc tách chi tiết: {e}")
         try:
             page.close()
         except:
@@ -205,99 +197,78 @@ def run_scraper():
     all_extracted_matches = {}
     parsed_items = []
 
-    print(f"[*] Khởi tạo công cụ cào dữ liệu Khán Đài TV (Bypass Cloudflare Mode)...")
+    print(f"[*] Khởi tạo cào dữ liệu Khán Đài TV...")
 
     try:
         with sync_playwright() as p:
             browser = p.chromium.launch(
                 headless=True,
                 args=[
-                    "--disable-blink-features=AutomationControlled",
                     "--no-sandbox",
                     "--disable-setuid-sandbox",
-                    "--disable-dev-shm-usage",
-                    "--disable-web-security"
+                    "--disable-dev-shm-usage",  # Chống crash RAM trên GitHub Actions
+                    "--disable-gpu",
+                    "--disable-blink-features=AutomationControlled"
                 ]
             )
             context = browser.new_context(
                 user_agent=USER_AGENT,
-                viewport={"width": 1920, "height": 1080},
+                viewport={"width": 1280, "height": 720},
                 timezone_id="Asia/Ho_Chi_Minh",
                 locale="vi-VN"
             )
 
-            # SCRIPT STEALTH: Xóa nhận diện bot của Playwright đối với Cloudflare
             context.add_init_script("""
                 Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
-                window.chrome = { runtime: {} };
-                Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3, 4, 5] });
-                Object.defineProperty(navigator, 'languages', { get: () => ['vi-VN', 'vi', 'en-US', 'en'] });
             """)
 
-            connected = False
             for base_url in DOMAINS:
-                print(f"[*] Đang thử kết nối: {base_url}")
+                print(f"[*] Đang kết nối: {base_url}")
                 try:
                     page = context.new_page()
-                    page.goto(base_url, timeout=35000, wait_until="domcontentloaded")
+                    page.goto(base_url, timeout=30000, wait_until="domcontentloaded")
                     time.sleep(3)
 
-                    # Kiểm tra Cloudflare Challenge
-                    page_title = page.title().lower()
-                    if "just a moment" in page_title or "cloudflare" in page_title or "attention required" in page_title:
-                        print("  [!] Phát hiện Cloudflare Challenge! Đang đợi 8 giây để tự vượt qua...")
-                        time.sleep(8)
+                    # Cuộn trang nhẹ để render lazy-load
+                    page.evaluate("window.scrollBy(0, 500)")
+                    time.sleep(1)
 
-                    # Cuộn trang để kích hoạt Lazy Load
-                    for _ in range(6):
-                        page.evaluate("window.scrollBy(0, 800)")
-                        time.sleep(0.4)
-
-                    # Cách 1: Quét bằng JavaScript DOM
+                    # Tối ưu DOM Query: Chỉ quét thẻ <a> chứa liên kết trận đấu
                     extracted = page.evaluate('''() => {
                         const results = [];
-                        const elements = document.querySelectorAll('a, div, li, article');
+                        const links = Array.from(document.querySelectorAll('a[href]'));
+                        const seen = new Set();
 
-                        elements.forEach(el => {
-                            let href = el.getAttribute('href') || el.getAttribute('data-href') || el.getAttribute('onclick') || '';
-                            if (!href) {
-                                const parentA = el.closest('a');
-                                if (parentA) href = parentA.getAttribute('href') || '';
-                            }
-                            if (!href) return;
+                        for (let a of links) {
+                            let href = a.getAttribute('href') || '';
+                            if (!href || href.startsWith('#') || href.startsWith('javascript:')) continue;
+                            if (href.includes('.css') || href.includes('.js') || href.includes('.png') || href.includes('.jpg')) continue;
 
-                            const matchHref = href.match(/(https?:\\/\\/[^"']+|\\/[a-zA-Z0-9_-]+)/);
-                            if (!matchHref) return;
-
-                            let cleanUrl = matchHref[0];
-                            if (cleanUrl.startsWith('javascript:') || cleanUrl === '#') return;
+                            const fullUrl = href.startsWith('http') ? href : window.location.origin + href;
                             
-                            const fullUrl = cleanUrl.startsWith('http') ? cleanUrl : window.location.origin + cleanUrl;
-                            const text = el.innerText || '';
-                            if (!text || text.length < 4) return;
+                            // Bỏ qua các trang danh mục cố định
+                            if (['/lich-thi-dau', '/bang-xep-hang', '/tin-tuc', '/nha-cai', '/khuyen-mai'].some(k => fullUrl.includes(k))) continue;
+                            if (seen.has(fullUrl)) continue;
+
+                            let text = (a.innerText || '').trim();
+                            let card = a.closest('.match-item, .item, .box, .card, li, div');
+                            let cardText = card ? (card.innerText || '').trim() : text;
+
+                            if (cardText.length < 5) continue;
 
                             let logoUrl = '';
-                            const img = el.querySelector('img');
+                            let img = card ? card.querySelector('img') : a.querySelector('img');
                             if (img) logoUrl = img.getAttribute('src') || img.getAttribute('data-src') || '';
 
+                            seen.add(fullUrl);
                             results.push({
                                 url: fullUrl,
-                                rawText: text,
+                                rawText: cardText,
                                 logo: logoUrl
                             });
-                        });
+                        }
                         return results;
                     }''')
-
-                    # Cách 2: Cào dự phòng bằng Regex nếu DOM trả về rỗng
-                    if not extracted:
-                        html_content = page.content()
-                        raw_urls = re.findall(r'href=["\'](/[^"\']+|https?://[^"\']+)["\']', html_content)
-                        for u in raw_urls:
-                            if any(x in u for x in [".css", ".js", ".png", ".jpg", ".ico", "javascript"]):
-                                continue
-                            full_u = u if u.startswith("http") else base_url.rstrip('/') + u
-                            extracted.append({"url": full_u, "rawText": "Bóng đá Trực Tiếp", "logo": ""})
 
                     for item in extracted:
                         all_extracted_matches[item['url']] = item
@@ -305,8 +276,7 @@ def run_scraper():
                     page.close()
 
                     if len(all_extracted_matches) > 0:
-                        print(f"[+] Kết nối thành công! Đã tìm thấy {len(all_extracted_matches)} đường dẫn liên quan.")
-                        connected = True
+                        print(f"[+] Tìm thấy {len(all_extracted_matches)} đường dẫn trận đấu từ {base_url}")
                         break
                 except Exception as err:
                     print(f"[!] Không thể cào {base_url}: {err}")
@@ -314,7 +284,7 @@ def run_scraper():
             raw_matches = list(all_extracted_matches.values())
 
             if raw_matches:
-                print(f"\n[*] Đang bóc tách chi tiết từng trận...")
+                print(f"\n[*] Đang xử lý danh sách trận đấu...")
                 for item in raw_matches:
                     match_url = item['url']
                     card_text = sanitize_text(item['rawText'])
@@ -363,6 +333,7 @@ def run_scraper():
                     if streams:
                         for server_label, stream_url in streams:
                             qual_tag = server_label.lower() if server_label.lower() in ["fhd", "hd", "sd"] else "hls"
+                            # Cấu trúc tiêu chuẩn như ảnh mẫu: 20:00 29/09 ⚽ Ethiopia vs Senegal (Enzo) [hls]
                             full_title = f"{extracted_time} {match_date} {sport_icon} {teams_title} ({blv_final}) [{qual_tag}]"
 
                             parsed_items.append({
@@ -378,7 +349,7 @@ def run_scraper():
     except Exception as e:
         print(f"[!] Lỗi hệ thống Playwright: {e}")
 
-    # Ghi xuất kết quả ra file playlist.m3u
+    # Sắp xếp theo thời gian và ghi ra file playlist.m3u
     parsed_items.sort(key=lambda x: x['dt'])
     with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
         f.write('#EXTM3U\n\n')
