@@ -1,2 +1,12 @@
 #EXTM3U
 
+#EXTINF:-1 tvg-logo="https://flagcdn.com/w320/un.png" group-title="Khán Đài TV", 20:00 30/09 ⚽ Skip to content (Khán Đài TV) [hls]
+#EXTVLCOPT:http-referrer=https://khandai1.link/
+#EXTVLCOPT:http-user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36
+https://khandaitv.com/./#content
+
+#EXTINF:-1 tvg-logo="https://flagcdn.com/w320/un.png" group-title="Khán Đài TV", 20:00 30/09 ⚽ superwin9 (Khán Đài TV) [hls]
+#EXTVLCOPT:http-referrer=https://khandai1.link/
+#EXTVLCOPT:http-user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36
+http://familycenterofnorthcarolina.com
+
