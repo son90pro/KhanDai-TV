@@ -6,6 +6,10 @@ on:
     - cron: '*/30 * * * *'
   workflow_dispatch: # Cho phép bấm chạy thủ công trên GitHub
 
+# Cấp quyền ghi để GitHub Actions Bot có thể Push file playlist.m3u lên repo
+permissions:
+  contents: write
+
 jobs:
   build-and-update:
     runs-on: ubuntu-latest
@@ -17,7 +21,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-python-version: '3.10'
+          python-version: '3.10'
 
       - name: Install dependencies
         run: |
@@ -29,7 +33,7 @@ jobs:
         run: |
           python scraper.py
 
-            - name: Commit and Push M3U file
+      - name: Commit and Push M3U file
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
@@ -40,11 +44,4 @@ jobs:
           else
             echo "Không tìm thấy file playlist.m3u, bỏ qua commit."
           fi
-
-        run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git add playlist.m3u
-          git commit -m "Auto update playlist M3U [skip ci]" || exit 0
-          git push
           
