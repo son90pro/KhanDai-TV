@@ -1,11 +1,10 @@
-import requests
-from bs4 import BeautifulSoup
 import re
+from bs4 import BeautifulSoup
+from playwright.sync_api import sync_playwright
 
 BASE_URL = 'https://khandai1.link'
 
 def get_sport_icon(sport_name):
-    """Phân loại Icon theo môn thể thao, ưu tiên bóng đá"""
     sport_name = str(sport_name).lower()
     if 'bóng chuyền' in sport_name or 'volleyball' in sport_name: return '🏐'
     elif 'bóng rổ' in sport_name or 'basketball' in sport_name: return '🏀'
@@ -14,49 +13,44 @@ def get_sport_icon(sport_name):
     elif 'bi a' in sport_name or 'billiards' in sport_name: return '🎱'
     else: return '⚽'
 
-def get_m3u8_from_detail(detail_url, headers):
-    """Vào trang chi tiết trận đấu để cào link stream .m3u8"""
-    try:
-        res = requests.get(detail_url, headers=headers, timeout=12)
-        if res.status_code == 200:
-            # Dùng Regex quét toàn bộ HTML trang chi tiết tìm link .m3u8
-            m3u8_matches = re.findall(r'(https?://[^\s"\'<>]+?\.m3u8[^\s"\']*)', res.text)
-            if m3u8_matches:
-                return m3u8_matches[0].replace('\\/', '/')
-    except Exception as e:
-        print(f"Lỗi lấy luồng từ {detail_url}: {e}")
-    return None
-
 def scrape_khandai():
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Referer': BASE_URL
-    }
-    
     m3u_content = "#EXTM3U\n\n"
     
-    try:
-        res = requests.get(BASE_URL, headers=headers, timeout=15)
-        soup = BeautifulSoup(res.text, 'html.parser')
-        
-        # Nhận diện thẻ khung trận đấu dựa theo class thực tế anh cung cấp
+    with sync_playwright() as p:
+        # Chạy trình duyệt Chromium ẩn
+        browser = p.chromium.launch(headless=True)
+        context = browser.new_context(
+            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        )
+        page = context.new_page()
+
+        print("Đang mở trang chủ Khán Đài TV...")
+        try:
+            page.goto(BASE_URL, wait_until="domcontentloaded", timeout=60000)
+            page.wait_for_timeout(4000) # Chờ 4 giây để Vue.js nạp dữ liệu trận đấu
+        except Exception as e:
+            print(f"Lỗi khi tải trang chủ: {e}")
+
+        html_content = page.content()
+        soup = BeautifulSoup(html_content, 'html.parser')
+
+        # Quét các thẻ khung trận đấu
         cards = soup.find_all('div', class_=lambda c: c and 'rounded-[22px]' in c)
         if not cards:
             cards = soup.find_all('div', attrs={'data-v-dea1422f': True})
-            
-        print(f"Tìm thấy {len(cards)} trận đấu trên trang chủ.")
+
+        print(f"Tìm thấy {len(cards)} trận đấu.")
 
         for card in cards:
             try:
-                # 1. Lấy đường link chi tiết trận đấu (/truc-tiep/...)
                 detail_a = card.find_parent('a', href=re.compile(r'/truc-tiep/')) or card.find('a', href=re.compile(r'/truc-tiep/'))
                 if not detail_a:
                     continue
-                
+
                 detail_href = detail_a['href']
                 detail_url = detail_href if detail_href.startswith('http') else BASE_URL + detail_href
 
-                # 2. Bóc tách Thời gian & Ngày tháng (VD: 13:00 - 30-09)
+                # Thời gian & Ngày
                 time_date_el = card.find('div', class_=re.compile(r'justify-self-start'))
                 time_str, date_str = "", ""
                 if time_date_el:
@@ -64,21 +58,21 @@ def scrape_khandai():
                     if '-' in raw_td:
                         parts = raw_td.split('-')
                         time_str = parts[0].strip()
-                        date_str = "/".join([p.strip() for p in parts[1:]]) # Chuyển 30-09 thành 30/09
+                        date_str = "/".join([p.strip() for p in parts[1:]])
                     else:
                         time_str = raw_td
 
-                # 3. Môn thể thao
+                # Môn thể thao
                 sport_el = card.find('span', class_='truncate')
                 sport_name = sport_el.text.strip() if sport_el else "Bóng đá"
                 sport_icon = get_sport_icon(sport_name)
 
-                # 4. Tên 2 đội bóng
+                # Tên 2 đội
                 team_names = [el.text.strip() for el in card.find_all('div', class_=re.compile(r'mt-2 truncate'))]
                 team1 = team_names[0] if len(team_names) > 0 else "Đội 1"
                 team2 = team_names[1] if len(team_names) > 1 else "Đội 2"
 
-                # 5. Logo đội bóng (Ưu tiên lấy logo đội 1)
+                # Logo đội bóng
                 logo_url = ""
                 for img in card.find_all('img'):
                     src = img.get('src', '')
@@ -86,31 +80,53 @@ def scrape_khandai():
                         logo_url = src if src.startswith('http') else BASE_URL + src
                         break
 
-                # 6. Tên Bình luận viên (BLV)
+                # Bình luận viên
                 blv_span = card.find('span', class_=re.compile(r'text-\[11px\] font-black leading-none text-white'))
                 commentator = blv_span.text.strip() if blv_span else "BLV"
 
-                # 7. Cào link stream m3u8 từ trang chi tiết
-                print(f"Đang bóc tách luồng: {team1} vs {team2} ({commentator})")
-                stream_url = get_m3u8_from_detail(detail_url, headers)
+                # Mở trang chi tiết bằng tab mới để bắt luồng m3u8 từ Network
+                print(f"Đang bắt luồng: {team1} vs {team2} ({commentator})")
+                detail_page = context.new_page()
+                stream_url = None
+
+                # Đăng ký hàm lắng nghe các request mạng để tóm link m3u8
+                def handle_request(request):
+                    nonlocal stream_url
+                    if '.m3u8' in request.url and not stream_url:
+                        stream_url = request.url
+
+                detail_page.on("request", handle_request)
+
+                try:
+                    detail_page.goto(detail_url, wait_until="domcontentloaded", timeout=20000)
+                    detail_page.wait_for_timeout(3000)
+                except Exception as e:
+                    print(f"Lỗi khi mở trang chi tiết {detail_url}: {e}")
+
+                # Dự phòng trường hợp không bắt được qua Network -> tìm trong mã nguồn HTML
+                if not stream_url:
+                    detail_html = detail_page.content()
+                    m3u8_matches = re.findall(r'(https?://[^\s"\'<>]+?\.m3u8[^\s"\']*)', detail_html)
+                    if m3u8_matches:
+                        stream_url = m3u8_matches[0].replace('\\/', '/')
+
+                detail_page.close()
 
                 if stream_url:
-                    # Ghi đúng định dạng M3U chuẩn Khán Đài TV
                     m3u_content += f'#EXTINF:-1 tvg-logo="{logo_url}" group-title="Khán Đài TV" , {sport_icon} {time_str} {date_str} {team1} vs {team2} ({commentator}) [hls]\n'
                     m3u_content += f'#EXTVLCOPT:http-referrer={BASE_URL}/\n'
                     m3u_content += f'{stream_url}\n\n'
 
             except Exception as e:
-                print(f"Lỗi khi xử lý 1 trận đấu: {e}")
+                print(f"Bỏ qua 1 trận do lỗi: {e}")
                 continue
 
-    except Exception as e:
-        print(f"Lỗi kết nối trang chủ: {e}")
+        browser.close()
 
-    # Ghi ra file khandai.m3u
+    # Lưu file M3U
     with open('khandai.m3u', 'w', encoding='utf-8') as f:
         f.write(m3u_content)
-    print("Đã cập nhật xong file khandai.m3u!")
+    print("Cập nhật thành công khandai.m3u!")
 
 if __name__ == "__main__":
     scrape_khandai()
