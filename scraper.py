@@ -463,8 +463,18 @@ def run_scraper():
 
         parsed_items.sort(key=sort_key)
 
-        with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
-            f.write('#EXTM3U\n\n')
+    # Luôn luôn khởi tạo file playlist.m3u (tránh lỗi Git khi danh sách rỗng)
+    with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
+        f.write('#EXTM3U\n\n')
+        if parsed_items:
+            # Sắp xếp danh sách
+            def sort_key(x):
+                sport_priority = 0 if x['sport'] == '⚽' else 1
+                status_priority = 0 if x['status'] == 'live' else 1
+                return (sport_priority, status_priority, x['dt'])
+
+            parsed_items.sort(key=sort_key)
+
             seen_urls = set()
             for item in parsed_items:
                 if item['match_url'] in seen_urls:
@@ -475,8 +485,4 @@ def run_scraper():
                 f.write(f'#EXTVLCOPT:http-referrer={REFERER_URL}\n')
                 f.write(f'{item["stream_url"]}\n\n')
 
-        print(f"\n[*] Hoàn tất! Đã xuất {len(parsed_items)} luồng trận đấu vào {OUTPUT_FILE}")
-
-if __name__ == "__main__":
-    run_scraper()
-    
+    print(f"\n[*] Hoàn tất! Đã xuất {len(parsed_items)} luồng trận đấu vào {OUTPUT_FILE}")
