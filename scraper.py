@@ -1,16 +1,28 @@
-import requests
+import cloudscraper
 
 URL = "https://khandai1.link/api/matches/?ordering=smart&page_size=50"
 OUTPUT_FILE = "playlist.m3u"
 
 headers = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-    "Content-Type": "application/json"
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36",
+    "Accept": "application/json, text/plain, */*",
+    "Accept-Language": "vi-VN,vi;q=0.9,en-US;q=0.8,en;q=0.7",
+    "Referer": "https://khandai1.link/",
+    "Origin": "https://khandai1.link"
 }
 
 def main():
     try:
-        response = requests.get(URL, headers=headers, timeout=15)
+        # Tạo scraper giả lập trình duyệt Chrome để vượt Cloudflare 403
+        scraper = cloudscraper.create_scraper(
+            browser={
+                'browser': 'chrome',
+                'platform': 'windows',
+                'desktop': True
+            }
+        )
+        
+        response = scraper.get(URL, headers=headers, timeout=20)
         response.raise_for_status()
         data = response.json()
         matches = data.get("results", [])
@@ -36,10 +48,10 @@ def main():
         with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
             f.write("\n".join(m3u_content))
 
-        print(f"Cập nhật thành công {len(m3u_content)//2} luồng phát vào {OUTPUT_FILE}")
+        print(f"Cập nhật thành công! Đã ghi {len(m3u_content)//2} luồng phát vào {OUTPUT_FILE}")
 
     except Exception as e:
-        print(f"Lỗi trong quá trình cào dữ liệu: {e}")
+        print(f"Lỗi cào dữ liệu: {e}")
         exit(1)
 
 if __name__ == "__main__":
