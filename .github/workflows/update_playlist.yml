@@ -29,7 +29,18 @@ jobs:
         run: |
           python scraper.py
 
-      - name: Commit and Push M3U file
+            - name: Commit and Push M3U file
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          if [ -f playlist.m3u ]; then
+            git add playlist.m3u
+            git commit -m "Auto update playlist M3U [skip ci]" || echo "Không có thay đổi mới để commit"
+            git push
+          else
+            echo "Không tìm thấy file playlist.m3u, bỏ qua commit."
+          fi
+
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
