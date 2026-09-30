@@ -1,6 +1,7 @@
 import os
 import re
 import time
+import json
 from datetime import datetime, timedelta, timezone
 from playwright.sync_api import sync_playwright
 
@@ -18,59 +19,29 @@ DEFAULT_BLV = "Khán Đài TV"
 
 USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
 
-# Danh sách Bình luận viên nhận diện
 KNOWN_BLVS = [
     "ENZO", "KAKA", "TÀY", "CHIM NHỎ", "PHÁO THỦ", "KỀN KỀN", 
     "LEE SIN", "TIỂU MÂY", "GẤU BÉO", "RỒNG LỘN", "CÀ RỐT", 
     "LÝ LINH LỰC", "LÝ LÊN LỬA", "LÝ LA LÀNG", "LÍU LO", "THÁI SƠN"
 ]
 
-# Emoji nhận diện từng môn thể thao
 SPORT_EMOJIS = {
     "bóng chuyền": "🏐", "volleyball": "🏐",
     "bóng rổ": "🏀", "basketball": "🏀",
     "cầu lông": "🏸", "badminton": "🏸",
-    "bi a": "🎱", "bida": "🎱", "billiards": "🎱", "pool": "🎱", "snooker": "🎱",
+    "bi a": "🎱", "bida": "🎱", "billiards": "🎱", "pool": "🎱",
     "bóng bàn": "🏓", "table tennis": "🏓",
     "quần vợt": "🎾", "tennis": "🎾",
     "bóng đá": "⚽", "football": "⚽", "soccer": "⚽"
 }
 
-# Bảng tra cứu cờ quốc gia mở rộng (FlagCDN ISO Codes)
 COUNTRY_FLAGS = {
-    # Châu Á & Đông Nam Á
-    "vietnam": "vn", "việt nam": "vn",
-    "thailand": "th", "thái lan": "th",
+    "vietnam": "vn", "việt nam": "vn", "thailand": "th", "thái lan": "th",
     "indonesia": "id", "malaysia": "my", "philippines": "ph", "singapore": "sg",
-    "myanmar": "mm", "cambodia": "kh", "campuchia": "kh", "laos": "la",
-    "timor": "tl", "timor leste": "tl", "brunei": "bn",
-    "japan": "jp", "nhật bản": "jp", "nhật": "jp",
-    "south korea": "kr", "hàn quốc": "kr", "hàn": "kr", "korea": "kr",
-    "north korea": "kp", "triều tiên": "kp",
-    "china": "cn", "trung quốc": "cn", "trung": "cn", "hong kong": "hk",
-    "uzbekistan": "uz", "saudi arabia": "sa", "saudi": "sa", "ả rập xê út": "sa",
-    "iraq": "iq", "iran": "ir", "qatar": "qa", "uae": "ae", "jordan": "jo",
-    "syria": "sy", "bahrain": "bh", "kuwait": "kw", "oman": "om", "palestine": "ps",
-    "india": "in", "indian": "in", "ấn độ": "in", "pakistan": "pk", "australia": "au", "úc": "au",
-
-    # Châu Âu
-    "england": "gb-eng", "anh": "gb-eng", "spain": "es", "tây ban nha": "es",
-    "france": "fr", "pháp": "fr", "germany": "de", "đức": "de", "italy": "it", "ý": "it",
-    "portugal": "pt", "bồ đào nha": "pt", "netherlands": "nl", "hà lan": "nl",
-    "belgium": "be", "bỉ": "be", "croatia": "hr", "slovenia": "si", "finland": "fi", "phần lan": "fi",
-    "belarus": "by", "czechia": "cz", "czech": "cz", "séc": "cz", "scotland": "gb-sct",
-    "switzerland": "ch", "thụy sĩ": "ch", "sweden": "se", "thụy điển": "se",
-    "norway": "no", "na uy": "no", "denmark": "dk", "đan mạch": "dk",
-    "poland": "pl", "ba lan": "pl", "israel": "il", "russia": "ru", "nga": "ru",
-    "ukraine": "ua", "turkey": "tr", "thổ nhĩ kỳ": "tr", "greece": "gr", "hy lạp": "gr",
-    "austria": "at", "áo": "at", "hungary": "hu",
-
-    # Châu Mỹ & Châu Phi
-    "brazil": "br", "argentina": "ar", "uruguay": "uy", "colombia": "co",
-    "chile": "cl", "usa": "us", "mỹ": "us", "mexico": "mx",
-    "egypt": "eg", "ai cập": "eg", "morocco": "ma", "ma rốc": "ma", "senegal": "sn",
-    "nigeria": "ng", "ghana": "gh", "cameroon": "cm", "algeria": "dz", "tunisia": "tn",
-    "south africa": "za", "nam phi": "za"
+    "japan": "jp", "nhật bản": "jp", "south korea": "kr", "hàn quốc": "kr",
+    "china": "cn", "trung quốc": "cn", "england": "gb-eng", "anh": "gb-eng",
+    "spain": "es", "tây ban nha": "es", "france": "fr", "pháp": "fr",
+    "germany": "de", "đức": "de", "italy": "it", "ý": "it", "brazil": "br", "argentina": "ar"
 }
 
 def sanitize_text(text: str) -> str:
@@ -105,8 +76,7 @@ def clean_teams_title(text: str) -> str:
     
     noise_patterns = [
         r'trực tiếp', r'phát trực tiếp', r'xem trực tiếp', r'xem bóng đá', r'phát',
-        r'theo bạn thì trận này đội nào sẽ thắng\??', r'chủ nhà', r'hòa', r'đội khách',
-        r'lý linh lực', r'lý lên lửa', r'lý la làng', r'nhà đài'
+        r'theo bạn thì trận này đội nào sẽ thắng\??', r'chủ nhà', r'hòa', r'đội khách'
     ]
     for pat in noise_patterns:
         text = re.sub(pat, '', text, flags=re.I)
@@ -138,9 +108,6 @@ def extract_blv_from_text(text: str) -> str:
         candidate = m.group(1).strip()
         if "NHÀ ĐÀI" not in candidate:
             return candidate.title()
-    m_ly = re.search(r'\b(LÝ\s+[A-ZÀ-Ỹ0-9\s]{2,12})\b', text_upper)
-    if m_ly:
-        return m_ly.group(1).strip().title()
     return ""
 
 def scrape_match_detail(context, match_url: str, card_blv: str = ""):
@@ -163,8 +130,8 @@ def scrape_match_detail(context, match_url: str, card_blv: str = ""):
 
     try:
         print(f"[*] Đang cào dữ liệu chi tiết: {match_url}")
-        page.goto(match_url, timeout=18000, wait_until="domcontentloaded")
-        time.sleep(1.8)
+        page.goto(match_url, timeout=20000, wait_until="domcontentloaded")
+        time.sleep(2)
 
         detail_data = page.evaluate('''() => {
             let t1 = '', t2 = '', blv = '', timeStr = '', dateStr = '';
@@ -205,19 +172,6 @@ def scrape_match_detail(context, match_url: str, card_blv: str = ""):
                 }
             }
 
-            if (!blv) {
-                const allEls = document.querySelectorAll('*');
-                for (let el of allEls) {
-                    if (el.children.length === 0 && el.innerText) {
-                        const txt = el.innerText.trim();
-                        if (txt.includes('🎧') || txt.toUpperCase().includes('BLV')) {
-                            blv = txt.replace('🎧', '').replace(/BLV/i, '').trim();
-                            break;
-                        }
-                    }
-                }
-            }
-
             return { team1: t1, team2: t2, blv: blv, time: timeStr, date: dateStr };
         }''')
 
@@ -233,13 +187,13 @@ def scrape_match_detail(context, match_url: str, card_blv: str = ""):
         match_time = sanitize_text(detail_data['time'])
         match_date = sanitize_text(detail_data['date'])
 
-        # Lấy danh sách server nguồn phát
+        # Lấy danh sách nút nguồn phát
         server_buttons = page.query_selector_all('button, div, a, li')
         valid_buttons = []
         for btn in server_buttons:
             try:
                 txt = btn.inner_text().strip()
-                if txt in ["HD1", "HD2", "HD3", "FHD", "SD", "Nhà đài", "Nguồn 1", "Nguồn 2", "GEO", "Full HD"]:
+                if txt in ["HD1", "HD2", "HD3", "FHD", "SD", "Nhà đài", "Nguồn 1", "Nguồn 2", "Full HD"]:
                     if txt not in [b[0] for b in valid_buttons]:
                         valid_buttons.append((txt, btn))
             except:
@@ -251,7 +205,6 @@ def scrape_match_detail(context, match_url: str, card_blv: str = ""):
                 try:
                     btn.click()
                     time.sleep(1)
-
                     if len(m3u8_history) > before_len:
                         captured_streams.append((label, m3u8_history[-1]))
                     elif m3u8_history:
@@ -292,32 +245,53 @@ def run_scraper():
         with sync_playwright() as p:
             browser = p.chromium.launch(
                 headless=True,
-                args=["--disable-blink-features=AutomationControlled", "--no-sandbox", "--disable-setuid-sandbox"]
+                args=[
+                    "--disable-blink-features=AutomationControlled",
+                    "--no-sandbox",
+                    "--disable-setuid-sandbox",
+                    "--disable-dev-shm-usage"
+                ]
             )
             context = browser.new_context(
                 user_agent=USER_AGENT,
-                viewport={"width": 1280, "height": 720},
+                viewport={"width": 1366, "height": 768},
                 timezone_id="Asia/Ho_Chi_Minh",
                 locale="vi-VN"
             )
+
+            # Đăng ký listener bắt API JSON nếu web dùng API
+            def handle_response(res):
+                try:
+                    if "application/json" in res.headers.get("content-type", ""):
+                        if any(k in res.url for k in ["match", "schedule", "live", "list", "api"]):
+                            data = res.json()
+                            print(f"[API Detected] Lấy dữ liệu từ API: {res.url}")
+                except Exception:
+                    pass
 
             for base_url in DOMAINS:
                 print(f"[*] Kết nối trang chủ: {base_url}")
                 try:
                     page = context.new_page()
-                    page.goto(base_url, timeout=25000, wait_until="domcontentloaded")
-                    time.sleep(2)
+                    page.on("response", handle_response)
 
+                    res = page.goto(base_url, timeout=30000, wait_until="domcontentloaded")
+                    status_code = res.status if res else 0
+                    page_title = page.title()
+                    print(f"[HTTP Status]: {status_code} | [Page Title]: {page_title}")
+
+                    if "Just a moment" in page_title or status_code in [403, 503]:
+                        print(f"[!] Cảnh báo: Trang {base_url} đang bật Cloudflare / Chặn IP GitHub!")
+                        page.close()
+                        continue
+
+                    time.sleep(3)
+
+                    # Tìm và bấm vào các tab thể thao
                     tab_selectors = [
                         "//*[contains(text(), 'Tất cả')]",
                         "//*[contains(text(), 'Hôm nay')]",
-                        "//*[contains(text(), 'Ngày mai')]",
-                        "//*[contains(text(), 'Bóng đá')]",
-                        "//*[contains(text(), 'Bóng chuyền')]",
-                        "//*[contains(text(), 'Bóng rổ')]",
-                        "//*[contains(text(), 'Cầu lông')]",
-                        "//*[contains(text(), 'Bi a')]",
-                        "//*[contains(text(), 'Bóng bàn')]"
+                        "//*[contains(text(), 'Bóng đá')]"
                     ]
 
                     for tab_xpath in tab_selectors:
@@ -325,13 +299,13 @@ def run_scraper():
                             tab_btn = page.query_selector(f"xpath={tab_xpath}")
                             if tab_btn and tab_btn.is_visible():
                                 tab_btn.click()
-                                time.sleep(0.8)
+                                time.sleep(1)
                         except:
                             pass
 
-                        for _ in range(5):
-                            page.evaluate("window.scrollBy(0, 1500)")
-                            time.sleep(0.3)
+                        for _ in range(3):
+                            page.evaluate("window.scrollBy(0, 1000)")
+                            time.sleep(0.4)
 
                         extracted = page.evaluate('''() => {
                             const results = [];
@@ -342,8 +316,9 @@ def run_scraper():
                                 if (!href || href === '#' || href.startsWith('javascript:')) return;
                                 const fullUrl = href.startsWith('http') ? href : window.location.origin + href;
 
-                                if (/(truc-tiep|match|live|phong|xem|tran|watch|room|bong-da|bong-chuyen|bong-ro|cau-long|bi-a|bida|bong-ban)/i.test(fullUrl) || fullUrl.split('/').pop().length > 10) {
-                                    let container = a.closest('div, li, article') || a.parentElement;
+                                // Mở rộng quy tắc lấy link
+                                if (/(truc-tiep|match|live|phong|xem|tran|watch|room|bong-da|bong-chuyen|bong-ro|cau-long|bi-a|bida|bong-ban)/i.test(fullUrl) || fullUrl.split('/').pop().length > 8) {
+                                    let container = a.closest('div, li, article, section') || a.parentElement;
                                     const text = container ? container.innerText : a.innerText;
                                     if (!text || text.length < 5) return;
 
@@ -374,8 +349,11 @@ def run_scraper():
                     page.close()
 
                     if len(all_extracted_matches) > 0:
-                        print(f"[+] Đã tìm thấy {len(all_extracted_matches)} mục trận đấu!")
+                        print(f"[+] Tìm thấy {len(all_extracted_matches)} mục trận đấu từ {base_url}!")
                         break
+                    else:
+                        print(f"[!] Không tìm thấy thẻ trận đấu nào trên {base_url}.")
+
                 except Exception as err:
                     print(f"[!] Lỗi kết nối {base_url}: {err}")
 
@@ -436,7 +414,6 @@ def run_scraper():
                     if streams:
                         for server_label, stream_url in streams:
                             stream_type = server_label.lower() if server_label in ["FHD", "HD", "SD", "geo"] else "hls"
-
                             full_title = sanitize_text(f"{status_dot}{extracted_time} {match_date} {sport_emoji} {teams_title} ({blv_final}) [{stream_type}]")
 
                             parsed_items.append({
@@ -454,20 +431,10 @@ def run_scraper():
     except Exception as e:
         print(f"[!] Lỗi hệ thống Playwright: {e}")
 
-    # Sắp xếp danh sách: Ưu tiên Bóng đá (⚽) trước, sau đó tới trận Live, tiếp theo là thời gian
-    if parsed_items:
-        def sort_key(x):
-            sport_priority = 0 if x['sport'] == '⚽' else 1
-            status_priority = 0 if x['status'] == 'live' else 1
-            return (sport_priority, status_priority, x['dt'])
-
-        parsed_items.sort(key=sort_key)
-
-    # Luôn luôn khởi tạo file playlist.m3u (tránh lỗi Git khi danh sách rỗng)
+    # Ghi file M3U
     with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
         f.write('#EXTM3U\n\n')
         if parsed_items:
-            # Sắp xếp danh sách
             def sort_key(x):
                 sport_priority = 0 if x['sport'] == '⚽' else 1
                 status_priority = 0 if x['status'] == 'live' else 1
@@ -486,3 +453,7 @@ def run_scraper():
                 f.write(f'{item["stream_url"]}\n\n')
 
     print(f"\n[*] Hoàn tất! Đã xuất {len(parsed_items)} luồng trận đấu vào {OUTPUT_FILE}")
+
+if __name__ == "__main__":
+    run_scraper()
+    
