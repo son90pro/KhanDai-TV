@@ -2,7 +2,8 @@ name: build-and-update
 
 on:
   schedule:
-    - cron: '0 */2 * * *' # Tự động chạy mỗi 2 tiếng 1 lần
+    # Chạy tự động lúc 00 phút mỗi giờ (1 tiếng / lần)
+    - cron: '0 * * * *'
   workflow_dispatch: # Nút bấm chạy thủ công trên GitHub
 
 jobs:
@@ -23,7 +24,6 @@ jobs:
           python -m pip install --upgrade pip
           pip install requests cloudscraper
 
-
       - name: Run Scraper
         run: python scraper.py
 
@@ -33,3 +33,4 @@ jobs:
           git config --local user.name "GitHub Action"
           git add playlist.m3u
           git diff --quiet && git diff --staged --quiet || (git commit -m "Auto update playlist M3U" && git push)
+          
