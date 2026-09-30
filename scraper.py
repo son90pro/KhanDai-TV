@@ -1,9 +1,10 @@
-import os
 import re
+import os
 import time
 from datetime import datetime, timezone, timedelta
-from urllib.parse import quote
-from playwright.sync_api import sync_playwright
+from urllib.parse import quote, urljoin
+import requests
+from bs4 import BeautifulSoup
 
 WORKER_DOMAIN = "chuoi-chien-iptv.sonnguyen90pro.workers.dev"
 DOMAINS = [
@@ -11,7 +12,8 @@ DOMAINS = [
     "https://khandai2.link",
     "https://khandaitv.com",
     "https://khandai.tv",
-    "https://khandaitv.net"
+    "https://khandaitv.net",
+    "https://khandai1.com"
 ]
 OUTPUT_FILE = "playlist.m3u"
 GROUP_NAME = "Khán Đài TV"
@@ -33,6 +35,12 @@ COUNTRY_FLAGS = {
     "norway": "no", "switzerland": "ch", "austria": "at", "poland": "pl", "ba lan": "pl", "ukraine": "ua",
     "czech": "cz", "serbia": "rs", "turkey": "tr", "thổ nhĩ kỳ": "tr", "russia": "ru", "nga": "ru",
     "brazil": "br", "argentina": "ar", "uruguay": "uy", "colombia": "co", "chile": "cl"
+}
+
+HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+    "Accept-Language": "vi-VN,vi;q=0.9,en-US;q=0.8,en;q=0.7"
 }
 
 def get_team_logo_url(teams_str: str, img_src: str = "") -> str:
@@ -107,130 +115,78 @@ def run_scraper():
     vn_tz = timezone(timedelta(hours=7))
     today_str = datetime.now(vn_tz).strftime("%d/%m")
     final_matches = []
+    raw_matches = []
+    base_domain_used = DOMAINS[0]
 
-    with sync_playwright() as p:
-        # Cấu hình Chromium chặn ảnh/môi trường đồ họa để chạy siêu tốc
-        browser = p.chromium.launch(
-            headless=True,
-            args=[
-                "--disable-blink-features=AutomationControlled",
-                "--no-sandbox",
-                "--disable-setuid-sandbox",
-                "--disable-gpu",
-                "--disable-dev-shm-usage",
-                "--blink-settings=imagesEnabled=false"
-            ]
-        )
-        context = browser.new_context(
-            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
-            viewport={"width": 1280, "height": 720},
-            timezone_id="Asia/Ho_Chi_Minh",
-            locale="vi-VN"
-        )
-        
-        page = context.new_page()
+    # Duyệt nhanh qua các Domain bằng HTTP GET (Timeout 5 giây)
+    for domain in DOMAINS:
+        try:
+            print(f"[*] Đang cào dữ liệu từ: {domain}")
+            res = requests.get(domain, headers=HEADERS, timeout=5)
+            if res.status_code == 200:
+                soup = BeautifulSoup(res.text, 'html.parser')
+                seen_urls = set()
 
-        # CHẶN TẤT CẢ TÀI NGUYÊN NẶNG & ADS
-        def block_unnecessary_resources(route):
-            req = route.request
-            if req.resource_type in ["image", "media", "font", "stylesheet"]:
-                route.abort()
-            elif any(domain in req.url for domain in ["google", "analytics", "doubleclick", "popads", "adservice", "histats"]):
-                route.abort()
-            else:
-                route.continue_()
+                # Tìm tất cả thẻ <a> dẫn tới các trận đấu
+                links = soup.find_all('a', href=True)
+                for a in links:
+                    href = a['href']
+                    if any(key in href for key in ['/truc-tiep/', '/match/', '/live/', '/xem/', '/room/', '/phong/', '/truc-tiep-bong-da/', '/xem-bong-da/']):
+                        full_url = urljoin(domain, href)
+                        if full_url in seen_urls:
+                            continue
+                        seen_urls.add(full_url)
 
-        page.route("**/*", block_unnecessary_resources)
-        page.add_init_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
+                        # Tìm thẻ chứa thông tin trận đấu
+                        card = a.find_parent(class_=re.compile(r'(item|match|card|box)', re.I)) or a
+                        card_text = card.get_text(separator=" ", strip=True)
 
-        raw_matches = []
-        base_domain_used = DOMAINS[0]
+                        img_tag = card.find('img') or a.find('img')
+                        img_src = ""
+                        if img_tag:
+                            img_src = img_tag.get('src') or img_tag.get('data-src') or ""
 
-        for domain in DOMAINS:
-            try:
-                print(f"[*] Kết nối nhanh tới: {domain}")
-                # Giảm timeout xuống 12s, chỉ chờ DOM render nhẹ
-                page.goto(domain, timeout=12000, wait_until="domcontentloaded")
-                time.sleep(1)
-
-                raw_matches = page.evaluate('''() => {
-                    const matches = [];
-                    const links = Array.from(document.querySelectorAll('a[href*="/truc-tiep/"], a[href*="/match/"], a[href*="/live/"], a[href*="/xem/"], a[href*="/room/"], a[href*="/phong/"], a[href*="/truc-tiep-bong-da/"], a[href*="/xem-bong-da/"]'));
-                    const seenUrls = new Set();
-
-                    links.forEach(link => {
-                        const href = link.getAttribute('href');
-                        if (!href) return;
-
-                        const fullUrl = href.startsWith('http') ? href : window.location.origin + href;
-                        if (seenUrls.has(fullUrl)) return;
-                        seenUrls.add(fullUrl);
-
-                        let card = link;
-                        let parent = link.parentElement;
-                        while (parent && parent.tagName !== 'BODY') {
-                            if (parent.querySelectorAll('a').length === 1) {
-                                card = parent;
-                                parent = parent.parentElement;
-                            } else {
-                                break;
-                            }
-                        }
-
-                        const imgEl = card ? card.querySelector('img') : link.querySelector('img');
-                        let imgSrc = '';
-                        if (imgEl) {
-                            imgSrc = imgEl.getAttribute('src') || imgEl.getAttribute('data-src') || '';
-                        }
-
-                        matches.push({
-                            url: fullUrl,
-                            fullText: card ? card.innerText || '' : link.innerText || '',
-                            imgSrc: imgSrc
-                        });
-                    });
-
-                    return matches;
-                }''')
+                        raw_matches.append({
+                            'url': full_url,
+                            'fullText': card_text,
+                            'imgSrc': img_src
+                        })
 
                 if raw_matches:
-                    print(f"[✅] Đã cào thành công {len(raw_matches)} trận từ {domain}")
+                    print(f"[✅] Lấy thành công {len(raw_matches)} trận từ {domain}")
                     base_domain_used = domain
                     break
-            except Exception as e:
-                print(f"[❌] Bỏ qua domain {domain} do timeout/lỗi: {e}")
+        except Exception as e:
+            print(f"[❌] Không thể kết nối {domain}: {e}")
 
-        page.close()
-        browser.close()
+    # Bóc tách và định dạng danh sách trận đấu
+    for item in raw_matches:
+        text, url, img_src = item['fullText'], item['url'], item['imgSrc']
+        if not text: continue
 
-        # Bóc tách tiêu đề & cờ quốc gia
-        for item in raw_matches:
-            text, url, img_src = item['fullText'], item['url'], item['imgSrc']
-            if not text: continue
+        extracted_time = parse_time_robust(url, text)
+        match_date = parse_date_info(url, text, today_str)
 
-            extracted_time = parse_time_robust(url, text)
-            match_date = parse_date_info(url, text, today_str)
+        clean_blv = ""
+        blv_match = re.search(r'((?:Gà|BLV|Caster)\s+[A-Za-zÀ-ỹ0-9\s\+]+)', text, re.IGNORECASE)
+        if blv_match:
+            raw_blv = blv_match.group(1).strip()
+            raw_blv = re.split(r'(?:hls|flv|live|trực tiếp|\d{1,2}:\d{2}|hiệp|cúp|league)', raw_blv, flags=re.IGNORECASE)[0].strip()
+            clean_blv = re.sub(r'^(BLV|Caster)\s*[:\-]?\s*', '', raw_blv, flags=re.IGNORECASE).strip()
 
-            clean_blv = ""
-            blv_match = re.search(r'((?:Gà|BLV|Caster)\s+[A-Za-zÀ-ỹ0-9\s\+]+)', text, re.IGNORECASE)
-            if blv_match:
-                raw_blv = blv_match.group(1).strip()
-                raw_blv = re.split(r'(?:hls|flv|live|trực tiếp|\d{1,2}:\d{2}|hiệp|cúp|league)', raw_blv, flags=re.IGNORECASE)[0].strip()
-                clean_blv = re.sub(r'^(BLV|Caster)\s*[:\-]?\s*', '', raw_blv, flags=re.IGNORECASE).strip()
+        teams_str = parse_teams_from_url(url, text)
+        logo = get_team_logo_url(teams_str, img_src)
 
-            teams_str = parse_teams_from_url(url, text)
-            logo = get_team_logo_url(teams_str, img_src)
+        blv_suffix = f" ({clean_blv.title()})" if clean_blv else ""
+        full_title = f"{extracted_time} {match_date} ⚽ {teams_str}{blv_suffix} [hls]".strip()
 
-            blv_suffix = f" ({clean_blv.title()})" if clean_blv else ""
-            full_title = f"{extracted_time} {match_date} ⚽ {teams_str}{blv_suffix} [hls]".strip()
+        final_matches.append({
+            "title": full_title,
+            "logo": logo,
+            "url": url
+        })
 
-            final_matches.append({
-                "title": full_title,
-                "logo": logo,
-                "url": url
-            })
-
-    # Ghi file M3U
+    # Xuất file M3U
     with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
         f.write(f'#EXTM3U tvg-shift="0" tvg-logo="{GAVANG_LOGO}" logo="{GAVANG_LOGO}"\n\n')
 
@@ -244,11 +200,11 @@ def run_scraper():
                 f.write(f'#EXTVLCOPT:http-referrer={base_domain_used}/\n')
                 f.write(f'{stream_url}\n\n')
         else:
+            print("[⚠️] Không lấy được trận nào. Tạo mục chờ...")
             f.write(f'#EXTINF:-1 group-title="{GROUP_NAME}",Đang cập nhật danh sách trận đấu...\n')
             f.write('https://0.0.0.0/offline.m3u8\n')
 
-    print(f"[*] Hoàn tất siêu tốc! Xuất {len(final_matches)} trận đấu vào {OUTPUT_FILE}")
+    print(f"[*] Đã hoàn thành trong vài giây! Xuất {len(final_matches)} trận đấu vào {OUTPUT_FILE}")
 
 if __name__ == "__main__":
     run_scraper()
-    
