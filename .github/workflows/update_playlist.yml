@@ -1,14 +1,9 @@
-name: Update M3U Playlist Automatically
+name: build-and-update
 
 on:
   schedule:
-    # Chạy tự động mỗi 30 phút
-    - cron: '*/30 * * * *'
-  workflow_dispatch: # Cho phép bấm chạy thủ công trên GitHub
-
-# Cấp quyền ghi để GitHub Actions Bot có thể Push file playlist.m3u lên repo
-permissions:
-  contents: write
+    - cron: '0 */2 * * *' # Tự động chạy mỗi 2 tiếng 1 lần
+  workflow_dispatch: # Nút bấm chạy thủ công trên GitHub
 
 jobs:
   build-and-update:
@@ -26,22 +21,14 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install playwright beautifulsoup4
-          playwright install --with-deps chromium
+          pip install requests
 
       - name: Run Scraper
-        run: |
-          python scraper.py
+        run: python scraper.py
 
       - name: Commit and Push M3U file
         run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          if [ -f playlist.m3u ]; then
-            git add playlist.m3u
-            git commit -m "Auto update playlist M3U [skip ci]" || echo "Không có thay đổi mới để commit"
-            git push
-          else
-            echo "Không tìm thấy file playlist.m3u, bỏ qua commit."
-          fi
-          
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add playlist.m3u
+          git diff --quiet && git diff --staged --quiet || (git commit -m "Auto update playlist M3U" && git push)
