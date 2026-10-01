@@ -1,10 +1,9 @@
 import cloudscraper
 from datetime import datetime
 
-API_URL = "https://khandai1.link/api/matches/?ordering=smart&page_size=50"
+API_URL = "https://khandai1.link/api/matches/?ordering=smart&page_size=100"
 DOMAIN = "https://khandai1.link"
 OUTPUT_FILE = "playlist.m3u"
-GROUP_NAME = "Khán Đài TV"  # Tên nhóm cố định hiển thị trên App
 
 headers = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36",
@@ -29,16 +28,70 @@ def format_start_time(iso_str):
         except Exception:
             return ""
 
+def get_sport_category(match):
+    """Tự động phân loại môn thể thao dựa trên API hoặc tên giải đấu"""
+    # Lấy thông tin sport từ API nếu có
+    sport_info = match.get("sport") or match.get("sport_type") or match.get("sport_name") or ""
+    if isinstance(sport_info, dict):
+        sport_str = str(sport_info.get("name", "")).lower()
+    else:
+        sport_str = str(sport_info).lower()
+
+    tournament_str = str(match.get("tournament_name", "")).lower()
+    
+    # Nhận diện môn thể thao
+    if "basket" in sport_str or "bóng rổ" in sport_str or "nba" in tournament_str or "bóng rổ" in tournament_str:
+        return "Bóng Rổ"
+    elif "volley" in sport_str or "bóng chuyền" in sport_str or "bóng chuyền" in tournament_str:
+        return "Bóng Chuyền"
+    elif "tennis" in sport_str or "quần vợt" in sport_str or "tennis" in tournament_str:
+        return "Quần Vợt"
+    elif "badminton" in sport_str or "cầu lông" in sport_str or "cầu lông" in tournament_str:
+        return "Cầu Lông"
+    elif "table tennis" in sport_str or "bóng bàn" in sport_str or "bóng bàn" in tournament_str:
+        return "Bóng Bàn"
+    elif "esports" in sport_str or "e-sports" in sport_str or "lol" in tournament_str or "dota" in tournament_str:
+        return "E-Sports"
+    
+    # Mặc định mặc định hầu hết luồng phát là Bóng Đá
+    return "Bóng Đá"
+
+def fetch_all_matches(scraper):
+    """Vòng lặp lấy TOÀN BỘ các trang dữ liệu từ API"""
+    matches = []
+    current_url = API_URL
+
+    while current_url:
+        try:
+            response = scraper.get(current_url, headers=headers, timeout=20)
+            response.raise_for_status()
+            data = response.json()
+
+            if isinstance(data, dict):
+                results = data.get("results", [])
+                matches.extend(results)
+                # Lấy URL trang kế tiếp (nếu có phân trang)
+                current_url = data.get("next")
+            elif isinstance(data, list):
+                matches.extend(data)
+                break
+            else:
+                break
+        except Exception as e:
+            print(f"Lỗi khi tải dữ liệu từ {current_url}: {e}")
+            break
+
+    return matches
+
 def main():
     try:
         scraper = cloudscraper.create_scraper(
             browser={'browser': 'chrome', 'platform': 'windows', 'desktop': True}
         )
         
-        response = scraper.get(API_URL, headers=headers, timeout=20)
-        response.raise_for_status()
-        data = response.json()
-        matches = data.get("results", [])
+        # 1. Lấy tất cả trận đấu (không bỏ sót trang nào)
+        matches = fetch_all_matches(scraper)
+        print(f"Lấy thành công tổng cộng {len(matches)} trận đấu từ API.")
 
         m3u_content = ["#EXTM3U"]
 
@@ -46,16 +99,19 @@ def main():
             home = match.get("home_team_name", "Home")
             away = match.get("away_team_name", "Away")
             
-            # 1. Xử lý Logo đội bóng / giải đấu
+            # 2. Xác định nhóm môn thể thao
+            group_category = get_sport_category(match)
+
+            # 3. Xử lý Logo đội bóng / giải đấu
             logo_path = match.get("home_team_logo") or match.get("tournament_icon_url") or ""
             logo_url = f"{DOMAIN}{logo_path}" if logo_path.startswith("/") else logo_path
 
-            # 2. Xử lý Thời gian thi đấu
+            # 4. Xử lý Thời gian thi đấu
             raw_start = match.get("start_time", "")
             time_formatted = format_start_time(raw_start)
             time_tag = f"{time_formatted} " if time_formatted else ""
 
-            # 3. Duyệt danh sách Bình luận viên & Luồng phát
+            # 5. Duyệt danh sách Bình luận viên & Luồng phát
             commentators = match.get("commentators", [])
 
             if commentators:
@@ -67,22 +123,22 @@ def main():
                     # Luồng chính (FHD)
                     if stream_url:
                         title_fhd = f"{time_tag}⚽ {home} vs {away} ({blv_name}) [FHD]"
-                        m3u_content.append(f'#EXTINF:-1 tvg-logo="{logo_url}" group-title="{GROUP_NAME}", {title_fhd}')
+                        m3u_content.append(f'#EXTINF:-1 tvg-logo="{logo_url}" group-title="{group_category}", {title_fhd}')
                         m3u_content.append(stream_url)
 
                     # Luồng dự phòng (HD)
                     if backup_url:
                         title_hd = f"{time_tag}⚽ {home} vs {away} ({blv_name}) [HD]"
-                        m3u_content.append(f'#EXTINF:-1 tvg-logo="{logo_url}" group-title="{GROUP_NAME}", {title_hd}')
+                        m3u_content.append(f'#EXTINF:-1 tvg-logo="{logo_url}" group-title="{group_category}", {title_hd}')
                         m3u_content.append(backup_url)
 
         with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
             f.write("\n".join(m3u_content))
 
-        print(f"Cập nhật thành công! Đã ghi {len(m3u_content)//2} luồng phát vào nhóm '{GROUP_NAME}' trong {OUTPUT_FILE}")
+        print(f"Cập nhật thành công! Đã ghi {len(m3u_content)//2} luồng phát vào {OUTPUT_FILE}")
 
     except Exception as e:
-        print(f"Lỗi cào dữ liệu: {e}")
+        print(f"Lỗi hệ thống: {e}")
         exit(1)
 
 if __name__ == "__main__":
