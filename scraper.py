@@ -1,4 +1,5 @@
 import cloudscraper
+import json
 from datetime import datetime
 
 API_URL = "https://khandai1.link/api/matches/?ordering=smart&page_size=100"
@@ -28,36 +29,42 @@ def format_start_time(iso_str):
         except Exception:
             return ""
 
-def get_sport_category(match):
-    """Tự động phân loại môn thể thao dựa trên API hoặc tên giải đấu"""
-    # Lấy thông tin sport từ API nếu có
-    sport_info = match.get("sport") or match.get("sport_type") or match.get("sport_name") or ""
-    if isinstance(sport_info, dict):
-        sport_str = str(sport_info.get("name", "")).lower()
-    else:
-        sport_str = str(sport_info).lower()
+def detect_sport_and_icon(match):
+    """
+    Quét toàn bộ dữ liệu JSON của trận đấu để phân loại môn thể thao và gán icon chính xác.
+    """
+    # Chuyển toàn bộ object match thành chuỗi chữ thường để tìm kiếm từ khóa rộng rãi
+    match_str = json.dumps(match, ensure_ascii=False).lower()
 
-    tournament_str = str(match.get("tournament_name", "")).lower()
+    # 1. BÓNG CHUYỀN
+    if any(k in match_str for k in ["bóng chuyền", "bong chuyen", "volleyball", "vnl", "v.league"]):
+        return "Bóng Chuyền", "🏐"
     
-    # Nhận diện môn thể thao
-    if "basket" in sport_str or "bóng rổ" in sport_str or "nba" in tournament_str or "bóng rổ" in tournament_str:
-        return "Bóng Rổ"
-    elif "volley" in sport_str or "bóng chuyền" in sport_str or "bóng chuyền" in tournament_str:
-        return "Bóng Chuyền"
-    elif "tennis" in sport_str or "quần vợt" in sport_str or "tennis" in tournament_str:
-        return "Quần Vợt"
-    elif "badminton" in sport_str or "cầu lông" in sport_str or "cầu lông" in tournament_str:
-        return "Cầu Lông"
-    elif "table tennis" in sport_str or "bóng bàn" in sport_str or "bóng bàn" in tournament_str:
-        return "Bóng Bàn"
-    elif "esports" in sport_str or "e-sports" in sport_str or "lol" in tournament_str or "dota" in tournament_str:
-        return "E-Sports"
-    
-    # Mặc định mặc định hầu hết luồng phát là Bóng Đá
-    return "Bóng Đá"
+    # 2. BÓNG RỔ
+    if any(k in match_str for k in ["bóng rổ", "bong ro", "basketball", "nba", "vba", "euroleague"]):
+        return "Bóng Rổ", "🏀"
+
+    # 3. QUẦN VỢT / TENNIS
+    if any(k in match_str for k in ["quần vợt", "quan vot", "tennis", "atp", "wta", "wimbledon", "us open", "roland garros"]):
+        return "Quần Vợt", "🎾"
+
+    # 4. CẦU LÔNG
+    if any(k in match_str for k in ["cầu lông", "cau long", "badminton", "bwf"]):
+        return "Cầu Lông", "🏸"
+
+    # 5. BÓNG BÀN
+    if any(k in match_str for k in ["bóng bàn", "bong ban", "table tennis", "ittf"]):
+        return "Bóng Bàn", "🏓"
+
+    # 6. E-SPORTS
+    if any(k in match_str for k in ["esports", "e-sports", "lien minh", "liên minh", "lol", "dota", "csgo", "cs2", "valorant", "tốc chiến"]):
+        return "E-Sports", "🎮"
+
+    # Mặc định là BÓNG ĐÁ
+    return "Bóng Đá", "⚽"
 
 def fetch_all_matches(scraper):
-    """Vòng lặp lấy TOÀN BỘ các trang dữ liệu từ API"""
+    """Lấy toàn bộ danh sách trận đấu qua tất cả các trang API"""
     matches = []
     current_url = API_URL
 
@@ -70,7 +77,6 @@ def fetch_all_matches(scraper):
             if isinstance(data, dict):
                 results = data.get("results", [])
                 matches.extend(results)
-                # Lấy URL trang kế tiếp (nếu có phân trang)
                 current_url = data.get("next")
             elif isinstance(data, list):
                 matches.extend(data)
@@ -89,7 +95,6 @@ def main():
             browser={'browser': 'chrome', 'platform': 'windows', 'desktop': True}
         )
         
-        # 1. Lấy tất cả trận đấu (không bỏ sót trang nào)
         matches = fetch_all_matches(scraper)
         print(f"Lấy thành công tổng cộng {len(matches)} trận đấu từ API.")
 
@@ -99,19 +104,19 @@ def main():
             home = match.get("home_team_name", "Home")
             away = match.get("away_team_name", "Away")
             
-            # 2. Xác định nhóm môn thể thao
-            group_category = get_sport_category(match)
+            # Phân loại môn thể thao & biểu tượng chính xác
+            group_category, icon = detect_sport_and_icon(match)
 
-            # 3. Xử lý Logo đội bóng / giải đấu
+            # Logo đội bóng / giải đấu
             logo_path = match.get("home_team_logo") or match.get("tournament_icon_url") or ""
             logo_url = f"{DOMAIN}{logo_path}" if logo_path.startswith("/") else logo_path
 
-            # 4. Xử lý Thời gian thi đấu
+            # Thời gian thi đấu
             raw_start = match.get("start_time", "")
             time_formatted = format_start_time(raw_start)
             time_tag = f"{time_formatted} " if time_formatted else ""
 
-            # 5. Duyệt danh sách Bình luận viên & Luồng phát
+            # Danh sách Bình luận viên & Luồng phát
             commentators = match.get("commentators", [])
 
             if commentators:
@@ -122,13 +127,13 @@ def main():
 
                     # Luồng chính (FHD)
                     if stream_url:
-                        title_fhd = f"{time_tag}⚽ {home} vs {away} ({blv_name}) [FHD]"
+                        title_fhd = f"{time_tag}{icon} {home} vs {away} ({blv_name}) [FHD]"
                         m3u_content.append(f'#EXTINF:-1 tvg-logo="{logo_url}" group-title="{group_category}", {title_fhd}')
                         m3u_content.append(stream_url)
 
                     # Luồng dự phòng (HD)
                     if backup_url:
-                        title_hd = f"{time_tag}⚽ {home} vs {away} ({blv_name}) [HD]"
+                        title_hd = f"{time_tag}{icon} {home} vs {away} ({blv_name}) [HD]"
                         m3u_content.append(f'#EXTINF:-1 tvg-logo="{logo_url}" group-title="{group_category}", {title_hd}')
                         m3u_content.append(backup_url)
 
