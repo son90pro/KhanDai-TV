@@ -1,12 +1,4 @@
 #EXTM3U
-#EXTINF:-1 tvg-logo="https://khandai1.link/media/teams/logos/team_11.jpg" group-title="Bóng Đá", 01:45 04/10 ⚽ North Macedonia vs Scotland (Lee Sin) [FHD]
-https://luong.phaohoa.live/live/phaohoa10/index.m3u8?expire=1815822079&sign=9a0c1792a57466ace2166ab62a2ea149
-#EXTINF:-1 tvg-logo="https://khandai1.link/media/teams/logos/team_2.jpg" group-title="Bóng Đá", 01:45 04/10 ⚽ Switzerland vs Slovenia (Chim Nhỏ) [FHD]
-https://luong.phaohoa.live/live/phaohoa5/index.m3u8?expire=1815505159&sign=67cc5bcdcabb081229f5406e5b07483d
-#EXTINF:-1 tvg-logo="https://khandai1.link/media/teams/logos/team_19.jpg" group-title="Bóng Đá", 01:45 04/10 ⚽ Spain vs Czech Republic (Tày) [FHD]
-https://luong.phaohoa.live/live/phaohoa8/index.m3u8?expire=1815822079&sign=9a0c1792a57466ace2166ab62a2ea149
-#EXTINF:-1 tvg-logo="https://khandai1.link/media/teams/logos/team_738.jpg" group-title="Bóng Đá", 02:00 04/10 ⚽ Ivory Coast vs Cameroon (Pháo Thủ) [FHD]
-https://luong.phaohoa.live/live/phaohoa4/index.m3u8?expire=1815505159&sign=faaa23580764370ed378ecd708c9f262
 #EXTINF:-1 tvg-logo="https://khandai1.link/media/teams/logos/team_7216.jpg" group-title="Bóng Đá", 19:00 04/10 ⚽ Real Sociedad B vs Granada CF (Kền Kền) [FHD]
 https://luong.phaohoa.live/live/phaohoa6/index.m3u8?expire=1815505159&sign=16059952b038cc8982ab6d1980711dc9
 #EXTINF:-1 tvg-logo="https://khandai1.link/media/teams/logos/team_678.jpg" group-title="Bóng Đá", 20:00 04/10 ⚽ Azerbaijan vs Lithuania (Pháo Thủ) [FHD]
@@ -29,8 +21,6 @@ https://luong.phaohoa.live/live/phaohoa8/index.m3u8?expire=1815822079&sign=9a0c1
 https://luong.phaohoa.live/live/phaohoa10/index.m3u8?expire=1815822079&sign=9a0c1792a57466ace2166ab62a2ea149
 #EXTINF:-1 tvg-logo="https://khandai1.link/media/teams/logos/team_4.jpg" group-title="Bóng Đá", 01:45 05/10 ⚽ Wales vs Denmark (Pháo Thủ) [FHD]
 https://luong.phaohoa.live/live/phaohoa4/index.m3u8?expire=1815505159&sign=faaa23580764370ed378ecd708c9f262
-#EXTINF:-1 tvg-logo="https://khandai1.link/media/teams/logos/image_6.webp" group-title="Bóng Chuyền", 01:30 04/10 🏐 Vero Volley Milano vs Firenze (KaKa) [FHD]
-https://luong.phaohoa.live/live/phaohoa7/index.m3u8?expire=1815822079&sign=9a0c1792a57466ace2166ab62a2ea149
 #EXTINF:-1 tvg-logo="https://khandai1.link/media/teams/logos/team_7694_CsCkv9g.png" group-title="Bóng Chuyền", 17:00 04/10 🏐 Fenerbahce vs Manisa BB (KaKa) [FHD]
 https://luong.phaohoa.live/live/phaohoa7/index.m3u8?expire=1815822079&sign=9a0c1792a57466ace2166ab62a2ea149
 #EXTINF:-1 tvg-logo="https://khandai1.link/media/teams/logos/big_1784530297PMG2o_isWDRah.webp" group-title="Bóng Chuyền", 20:00 04/10 🏐 Aras Kargo vs Zeren Spor (Chim Nhỏ) [FHD]
