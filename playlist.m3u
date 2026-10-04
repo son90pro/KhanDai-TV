@@ -1,10 +1,4 @@
 #EXTM3U
-#EXTINF:-1 tvg-logo="https://khandai1.link/media/teams/logos/team_7216.jpg" group-title="Bóng Đá", 19:00 04/10 ⚽ Real Sociedad B vs Granada CF (Kền Kền) [FHD]
-https://luong.phaohoa.live/live/phaohoa6/index.m3u8?expire=1815505159&sign=16059952b038cc8982ab6d1980711dc9
-#EXTINF:-1 tvg-logo="https://khandai1.link/media/teams/logos/team_678.jpg" group-title="Bóng Đá", 20:00 04/10 ⚽ Azerbaijan vs Lithuania (Pháo Thủ) [FHD]
-https://luong.phaohoa.live/live/phaohoa4/index.m3u8?expire=1815505159&sign=faaa23580764370ed378ecd708c9f262
-#EXTINF:-1 tvg-logo="https://khandai1.link/media/teams/logos/team_26.jpg" group-title="Bóng Đá", 22:30 04/10 ⚽ Manchester City W vs Arsenal W (Lee Sin) [FHD]
-https://luong.phaohoa.live/live/phaohoa10/index.m3u8?expire=1815822079&sign=9a0c1792a57466ace2166ab62a2ea149
 #EXTINF:-1 tvg-logo="https://khandai1.link/media/teams/logos/team_698.jpg" group-title="Bóng Đá", 23:00 04/10 ⚽ Malta vs Andorra (Tiểu Mây) [FHD]
 https://luong.phaohoa.live/live/phaohoa9/index.m3u8?expire=1815822079&sign=9a0c1792a57466ace2166ab62a2ea149
 #EXTINF:-1 tvg-logo="https://khandai1.link/media/teams/logos/team_681.jpg" group-title="Bóng Đá", 23:00 04/10 ⚽ Kosovo vs Austria (Tày) [FHD]
@@ -21,14 +15,64 @@ https://luong.phaohoa.live/live/phaohoa8/index.m3u8?expire=1815822079&sign=9a0c1
 https://luong.phaohoa.live/live/phaohoa10/index.m3u8?expire=1815822079&sign=9a0c1792a57466ace2166ab62a2ea149
 #EXTINF:-1 tvg-logo="https://khandai1.link/media/teams/logos/team_4.jpg" group-title="Bóng Đá", 01:45 05/10 ⚽ Wales vs Denmark (Pháo Thủ) [FHD]
 https://luong.phaohoa.live/live/phaohoa4/index.m3u8?expire=1815505159&sign=faaa23580764370ed378ecd708c9f262
-#EXTINF:-1 tvg-logo="https://khandai1.link/media/teams/logos/team_7694_CsCkv9g.png" group-title="Bóng Chuyền", 17:00 04/10 🏐 Fenerbahce vs Manisa BB (KaKa) [FHD]
-https://luong.phaohoa.live/live/phaohoa7/index.m3u8?expire=1815822079&sign=9a0c1792a57466ace2166ab62a2ea149
-#EXTINF:-1 tvg-logo="https://khandai1.link/media/teams/logos/big_1784530297PMG2o_isWDRah.webp" group-title="Bóng Chuyền", 20:00 04/10 🏐 Aras Kargo vs Zeren Spor (Chim Nhỏ) [FHD]
+#EXTINF:-1 tvg-logo="https://khandai1.link/media/teams/logos/team_478.jpg" group-title="Bóng Đá", 16:00 05/10 ⚽ Malaysia vs Việt Nam (Lee Sin) [FHD]
+https://luong.phaohoa.live/live/phaohoa10/index.m3u8?expire=1815822079&sign=9a0c1792a57466ace2166ab62a2ea149
+#EXTINF:-1 tvg-logo="https://khandai1.link/media/teams/logos/team_478.jpg" group-title="Bóng Đá", 16:00 05/10 ⚽ Malaysia vs Việt Nam (Tày) [FHD]
+https://luong.phaohoa.live/live/phaohoa8/index.m3u8?expire=1815822079&sign=9a0c1792a57466ace2166ab62a2ea149
+#EXTINF:-1 tvg-logo="https://khandai1.link/media/teams/logos/team_484.jpg" group-title="Bóng Đá", 20:00 05/10 ⚽ Indonesia vs Thái Lan (Chim Nhỏ) [FHD]
 https://luong.phaohoa.live/live/phaohoa5/index.m3u8?expire=1815505159&sign=67cc5bcdcabb081229f5406e5b07483d
+#EXTINF:-1 tvg-logo="https://khandai1.link/media/teams/logos/team_484.jpg" group-title="Bóng Đá", 20:00 05/10 ⚽ Indonesia vs Thái Lan (Pháo Thủ) [FHD]
+https://luong.phaohoa.live/live/phaohoa4/index.m3u8?expire=1815505159&sign=faaa23580764370ed378ecd708c9f262
+#EXTINF:-1 tvg-logo="https://khandai1.link/media/teams/logos/team_697.jpg" group-title="Bóng Đá", 23:00 05/10 ⚽ Cyprus vs Latvia (Enzo) [FHD]
+https://luong.phaohoa.live/live/phaohoa2/index.m3u8?expire=1815505159&sign=d3bfcbaa36f949863f22cc89e1cc1afa
+#EXTINF:-1 tvg-logo="https://khandai1.link/media/teams/logos/team_9884.jpg" group-title="Bóng Đá", 23:15 05/10 ⚽ Italy U21 vs Poland U21 (Tiểu Mây) [FHD]
+https://luong.phaohoa.live/live/phaohoa9/index.m3u8?expire=1815822079&sign=9a0c1792a57466ace2166ab62a2ea149
+#EXTINF:-1 tvg-logo="https://khandai1.link/media/teams/logos/team_685.jpg" group-title="Bóng Đá", 01:45 06/10 ⚽ Bosnia & Herzegovina vs Poland (Kền Kền) [FHD]
+https://luong.phaohoa.live/live/phaohoa6/index.m3u8?expire=1815505159&sign=16059952b038cc8982ab6d1980711dc9
+#EXTINF:-1 tvg-logo="https://khandai1.link/media/teams/logos/team_682.jpg" group-title="Bóng Đá", 01:45 06/10 ⚽ Northern Ireland vs Georgia (Tiểu Mây) [FHD]
+https://luong.phaohoa.live/live/phaohoa9/index.m3u8?expire=1815822079&sign=9a0c1792a57466ace2166ab62a2ea149
+#EXTINF:-1 tvg-logo="https://khandai1.link/media/teams/logos/team_702.jpg" group-title="Bóng Đá", 01:45 06/10 ⚽ Romania vs Sweden (Chim Nhỏ) [FHD]
+https://luong.phaohoa.live/live/phaohoa5/index.m3u8?expire=1815505159&sign=67cc5bcdcabb081229f5406e5b07483d
+#EXTINF:-1 tvg-logo="https://khandai1.link/media/teams/logos/team_12.jpg" group-title="Bóng Đá", 01:45 06/10 ⚽ Ukraine vs Hungary (Pháo Thủ) [FHD]
+https://luong.phaohoa.live/live/phaohoa4/index.m3u8?expire=1815505159&sign=faaa23580764370ed378ecd708c9f262
+#EXTINF:-1 tvg-logo="https://khandai1.link/media/teams/logos/team_22.jpg" group-title="Bóng Đá", 01:45 06/10 ⚽ France vs Belgium (Lee Sin) [FHD]
+https://luong.phaohoa.live/live/phaohoa10/index.m3u8?expire=1815822079&sign=9a0c1792a57466ace2166ab62a2ea149
+#EXTINF:-1 tvg-logo="https://khandai1.link/media/teams/logos/team_3.jpg" group-title="Bóng Đá", 01:45 06/10 ⚽ Italy vs Turkey (Tày) [FHD]
+https://luong.phaohoa.live/live/phaohoa8/index.m3u8?expire=1815822079&sign=9a0c1792a57466ace2166ab62a2ea149
+#EXTINF:-1 tvg-logo="https://khandai1.link/media/teams/logos/team_693.jpg" group-title="Bóng Đá", 01:45 06/10 ⚽ Montenegro vs Armenia (Enzo) [FHD]
+https://luong.phaohoa.live/live/phaohoa2/index.m3u8?expire=1815505159&sign=d3bfcbaa36f949863f22cc89e1cc1afa
+#EXTINF:-1 tvg-logo="https://khandai1.link/media/tournaments/icons/tournament_401.png" group-title="Bóng Đá", 15:30 06/10 ⚽ Lam Dong vs Sông Lam Nghệ An (Tày) [FHD]
+https://luong.phaohoa.live/live/phaohoa8/index.m3u8?expire=1815822079&sign=9a0c1792a57466ace2166ab62a2ea149
+#EXTINF:-1 tvg-logo="https://khandai1.link/media/teams/logos/team_651.jpg" group-title="Bóng Đá", 18:00 06/10 ⚽ South Korea vs Uzbekistan (Pháo Thủ) [FHD]
+https://luong.phaohoa.live/live/phaohoa4/index.m3u8?expire=1815505159&sign=faaa23580764370ed378ecd708c9f262
+#EXTINF:-1 tvg-logo="https://khandai1.link/media/teams/logos/team_8048.jpg" group-title="Bóng Đá", 18:00 06/10 ⚽ PVF-CAND vs Hue (Tiểu Mây) [FHD]
+https://luong.phaohoa.live/live/phaohoa9/index.m3u8?expire=1815822079&sign=9a0c1792a57466ace2166ab62a2ea149
+#EXTINF:-1 tvg-logo="https://khandai1.link/media/teams/logos/Trường_Tươi_Đồng_Nai_FC.png" group-title="Bóng Đá", 18:00 06/10 ⚽ Đồng Nai vs Bình Phước (Enzo) [FHD]
+https://luong.phaohoa.live/live/phaohoa2/index.m3u8?expire=1815505159&sign=d3bfcbaa36f949863f22cc89e1cc1afa
+#EXTINF:-1 tvg-logo="https://khandai1.link/media/teams/logos/team_639.jpg" group-title="Bóng Đá", 18:35 06/10 ⚽ China vs Tajikistan (Chim Nhỏ) [FHD]
+https://luong.phaohoa.live/live/phaohoa5/index.m3u8?expire=1815505159&sign=67cc5bcdcabb081229f5406e5b07483d
+#EXTINF:-1 tvg-logo="https://khandai1.link/media/teams/logos/team_347.jpg" group-title="Bóng Đá", 21:00 06/10 ⚽ India vs Uruguay (Lee Sin) [FHD]
+https://luong.phaohoa.live/live/phaohoa10/index.m3u8?expire=1815822079&sign=9a0c1792a57466ace2166ab62a2ea149
+#EXTINF:-1 tvg-logo="https://khandai1.link/media/teams/logos/team_686.jpg" group-title="Bóng Đá", 21:00 06/10 ⚽ Kazakhstan vs Faroe Islands (Tày) [FHD]
+https://luong.phaohoa.live/live/phaohoa8/index.m3u8?expire=1815822079&sign=9a0c1792a57466ace2166ab62a2ea149
+#EXTINF:-1 tvg-logo="https://khandai1.link/media/teams/logos/team_5.jpg" group-title="Bóng Đá", 23:00 06/10 ⚽ Russia vs Nigeria (Tiểu Mây) [FHD]
+https://luong.phaohoa.live/live/phaohoa9/index.m3u8?expire=1815822079&sign=9a0c1792a57466ace2166ab62a2ea149
+#EXTINF:-1 tvg-logo="https://khandai1.link/media/teams/logos/team_15.jpg" group-title="Bóng Đá", 01:45 07/10 ⚽ Scotland vs Slovenia (Chim Nhỏ) [FHD]
+https://luong.phaohoa.live/live/phaohoa5/index.m3u8?expire=1815505159&sign=67cc5bcdcabb081229f5406e5b07483d
+#EXTINF:-1 tvg-logo="https://khandai1.link/media/teams/logos/team_2.jpg" group-title="Bóng Đá", 01:45 07/10 ⚽ Switzerland vs North Macedonia (Pháo Thủ) [FHD]
+https://luong.phaohoa.live/live/phaohoa4/index.m3u8?expire=1815505159&sign=faaa23580764370ed378ecd708c9f262
+#EXTINF:-1 tvg-logo="https://khandai1.link/media/teams/logos/team_14.jpg" group-title="Bóng Đá", 01:45 07/10 ⚽ Croatia vs Spain (Lee Sin) [FHD]
+https://luong.phaohoa.live/live/phaohoa10/index.m3u8?expire=1815822079&sign=9a0c1792a57466ace2166ab62a2ea149
+#EXTINF:-1 tvg-logo="https://khandai1.link/media/teams/logos/team_16.jpg" group-title="Bóng Đá", 01:45 07/10 ⚽ England vs Czech Republic (Tày) [FHD]
+https://luong.phaohoa.live/live/phaohoa8/index.m3u8?expire=1815822079&sign=9a0c1792a57466ace2166ab62a2ea149
+#EXTINF:-1 tvg-logo="https://khandai1.link/media/teams/logos/team_687.jpg" group-title="Bóng Đá", 01:45 07/10 ⚽ Belarus vs Finland (Tiểu Mây) [FHD]
+https://luong.phaohoa.live/live/phaohoa9/index.m3u8?expire=1815822079&sign=9a0c1792a57466ace2166ab62a2ea149
+#EXTINF:-1 tvg-logo="https://khandai1.link/media/teams/logos/team_688.jpg" group-title="Bóng Đá", 01:45 07/10 ⚽ Estonia vs Iceland (Enzo) [FHD]
+https://luong.phaohoa.live/live/phaohoa2/index.m3u8?expire=1815505159&sign=d3bfcbaa36f949863f22cc89e1cc1afa
 #EXTINF:-1 tvg-logo="https://khandai1.link/media/teams/logos/team_4898.png" group-title="Bóng Chuyền", 21:00 04/10 🏐 Scandicci vs Chieri (Enzo) [FHD]
 https://luong.phaohoa.live/live/phaohoa2/index.m3u8?expire=1815505159&sign=d3bfcbaa36f949863f22cc89e1cc1afa
-#EXTINF:-1 tvg-logo="https://khandai1.link/media/teams/logos/Imocovolley.png" group-title="Bóng Chuyền", 22:00 04/10 🏐 Imoco vs Cuneo (Tiểu Mây) [FHD]
-https://luong.phaohoa.live/live/phaohoa9/index.m3u8?expire=1815822079&sign=9a0c1792a57466ace2166ab62a2ea149
+#EXTINF:-1 tvg-logo="https://khandai1.link/media/teams/logos/Imocovolley.png" group-title="Bóng Chuyền", 22:00 04/10 🏐 Imoco vs Cuneo (Lee Sin) [FHD]
+https://luong.phaohoa.live/live/phaohoa10/index.m3u8?expire=1815822079&sign=9a0c1792a57466ace2166ab62a2ea149
 #EXTINF:-1 tvg-logo="https://khandai1.link/media/teams/logos/20200107221627Logo_UYBA_Volley.png" group-title="Bóng Chuyền", 22:00 04/10 🏐 UYBA vs Novara (KaKa) [FHD]
 https://luong.phaohoa.live/live/phaohoa7/index.m3u8?expire=1815822079&sign=9a0c1792a57466ace2166ab62a2ea149
 #EXTINF:-1 tvg-logo="https://khandai1.link/media/teams/logos/Türk_Hava_Yolları_SK_logo.png" group-title="Bóng Chuyền", 23:00 04/10 🏐 THY vs Galatasaray (Chim Nhỏ) [FHD]
